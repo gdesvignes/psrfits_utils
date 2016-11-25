@@ -11,4 +11,4 @@ typedef struct {
 
 void *merge_psrfits_thread(void *args);
 
-pthread_mutex_t lock_read;
+pthread_mutex_t lock_merge;

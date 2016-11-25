@@ -15,9 +15,9 @@ void *merge_psrfits_thread(void *_args) {
     // -- Get arguments --
     thread_args *args = (thread_args *) _args;
 
-    pthread_mutex_lock(&lock_read);
+    pthread_mutex_lock(&lock_merge);
     args->status = psrfits_read_subint(&args->pf);
-    pthread_mutex_unlock(&lock_read);
+    pthread_mutex_unlock(&lock_merge);
     //printf("offs = %lf\n", args->pf.sub.offs);
 
     pthread_exit(NULL);
