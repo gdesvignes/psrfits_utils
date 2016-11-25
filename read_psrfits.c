@@ -265,9 +265,15 @@ int psrfits_read_subint(struct psrfits *pf) {
             NULL, status);
     fits_get_colnum(pf->fptr, 0, "DATA", &colnum, status);
     if (mode==SEARCH_MODE) {
-        fits_read_col(pf->fptr, TBYTE, colnum, row, 1, sub->bytes_per_subint,
-                      NULL, sub->rawdata, NULL, status);
-        if (hdr->nbits==4) pf_4bit_to_8bit(pf);
+        if (hdr->nbits==32)
+	  fits_read_col(pf->fptr, TFLOAT, colnum, row, 1, sub->bytes_per_subint/sizeof(float),
+                      NULL, sub->data, NULL, status);
+	else {
+	  fits_read_col(pf->fptr, TBYTE, colnum, row, 1, sub->bytes_per_subint,
+			NULL, sub->data, NULL, status);
+	  if (hdr->nbits==4) pf_4bit_to_8bit(pf);
+	}
+
     } else if (mode==FOLD_MODE) {
         fits_read_col(pf->fptr, TFLOAT, colnum, row, 1, sub->bytes_per_subint,
                       NULL, sub->data, NULL, status);

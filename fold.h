@@ -45,4 +45,10 @@ int scale_offset_folds(struct foldbuf *f,
 
 int accumulate_folds(struct foldbuf *ftot, const struct foldbuf *f);
 
+void *fold_float_power_thread(void *_args);
+
+int fold_float_power(const struct polyco *pc, int imjd, double fmjd, 
+		     const float *data, int nsamp, double tsamp,
+		     struct foldbuf *f);
+
 #endif

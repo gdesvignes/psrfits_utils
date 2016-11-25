@@ -10,6 +10,7 @@
 // The following is the template file to use to create a PSRFITS file.
 #define PSRFITS_SEARCH_TEMPLATE "guppi_PSRFITS_v3.4_search_template.txt"
 #define PSRFITS_FOLD_TEMPLATE "guppi_PSRFITS_v3.4_fold_template.txt"
+#define PSRFITS_SEARCH32_TEMPLATE "guppi_PSRFITS_v3.4_search32bits_template.txt"
 
 struct hdrinfo {
     char obs_mode[8];       // Observing mode (SEARCH, PSR, CAL)

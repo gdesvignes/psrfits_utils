@@ -736,7 +736,7 @@ usage(void)
   fprintf(stderr,"%s","    -verbose: Debugging mode\n");
   fprintf(stderr,"%s","      infile: Input file name(s) of the PSRFITS datafiles\n");
   fprintf(stderr,"%s","              1...2000 values\n");
-  fprintf(stderr,"%s","  version: 07Sep12\n");
+  fprintf(stderr,"%s","  version: 25Nov16\n");
   fprintf(stderr,"%s","  ");
   exit(EXIT_FAILURE);
 }

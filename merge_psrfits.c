@@ -186,8 +186,10 @@ int main(int argc, char *argv[]) {
     pf.hdr.fctr = fctr;
     pf.hdr.BW = fargs[0].pf.hdr.BW * nbands;
     pf.sub.bytes_per_subint = bytes_per_subint * nbands;
+    if (pf.hdr.nbits==32) pf.sub.FITS_typecode = TFLOAT;
+
     unsigned long long filelen = (PSRFITS_MAXFILELEN_SEARCH<<30);  
-    if (cmd->verboseP) printf("bytes per subint = %d filelen = %lld freq_fact = %d nbits=%d\n", pf.sub.bytes_per_subint, filelen, pf.hdr.ds_freq_fact, pf.hdr.nbits);
+    if (cmd->verboseP) printf("nband = %d bytes per subint = %d filelen = %lld freq_fact = %d nbits=%d\n", nbands,  pf.sub.bytes_per_subint, filelen, pf.hdr.ds_freq_fact, pf.hdr.nbits);
     pf.rows_per_file = filelen / pf.sub.bytes_per_subint;
 
     // -- Create the new merged psrfits --
@@ -202,6 +204,7 @@ int main(int argc, char *argv[]) {
     pf.sub.dat_weights = (float *)malloc(sizeof(float) * pf.hdr.nchan);
     pf.sub.dat_offsets = (float *)malloc(sizeof(float) * pf.hdr.nchan * pf.hdr.npol);
     pf.sub.dat_scales  = (float *)malloc(sizeof(float) * pf.hdr.nchan * pf.hdr.npol);
+    pf.sub.rawdata = (unsigned char *)malloc(pf.sub.bytes_per_subint);
     pf.sub.data = (unsigned char *)malloc(pf.sub.bytes_per_subint);
 
     // -- Given the frequency, set pointers to the correct position --
@@ -210,6 +213,7 @@ int main(int argc, char *argv[]) {
         fargs[i].pf.sub.dat_weights = (float *) &pf.sub.dat_weights[fargs[i].chan_id * nchan];
         fargs[i].pf.sub.dat_offsets = (float *) &pf.sub.dat_offsets[fargs[i].chan_id * nchan * npol];
         fargs[i].pf.sub.dat_scales  = (float *) &pf.sub.dat_scales[fargs[i].chan_id * nchan * npol];
+        fargs[i].pf.sub.rawdata = (unsigned char *) &tmpbuf[fargs[i].chan_id * bytes_per_subint];
         fargs[i].pf.sub.data = (unsigned char *) &tmpbuf[fargs[i].chan_id * bytes_per_subint];
     }
 
@@ -233,8 +237,7 @@ int main(int argc, char *argv[]) {
 	if (statsum) break;
 
 	copy_subint_params(&pf, &fargs[0].pf);
-	reorder_data(pf.sub.data, tmpbuf, nbands, pf.hdr.nsblk, pf.hdr.npol, nchan, pf.hdr.nbits);
-
+	reorder_data(pf.sub.rawdata, tmpbuf, nbands, pf.hdr.nsblk, pf.hdr.npol, nchan, pf.hdr.nbits);
 	status = psrfits_write_subint(&pf);
 
 	print_percent_complete(fargs[0].pf.tot_rows, fargs[0].pf.rows_per_file, fargs[0].pf.tot_rows == 1 ? 1:0);
