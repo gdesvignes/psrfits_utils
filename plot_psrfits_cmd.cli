@@ -1,0 +1,26 @@
+Name plot_psrfits
+
+Usage "\nPlot PSRFITS search data into a waterfall. Can read a PRESTO mask.\n"
+
+Version [exec date +%d%b%y]
+
+Commandline full_cmd_line
+
+# Options (in order you want them to appear)
+String -m  maskfile {Mask filename}
+Flag   -verbose    verbose    {Debugging mode}
+Int    -fbin   fbin   {Power-of-2 number of samples to average in frequency} \
+    -r 1 512 -d 1
+Int    -tbin   tbin   {Power-of-2 number of samples to average in time} \
+    -r 1 512 -d 1
+Float   -start   start   {Start time of the data to plot} \
+    -r 0.0 10000.0 -d 0.0
+Float   -end   end   {End time of the data to plot} \
+    -r 0.0 10000.0 -d 1.0
+Float   -dm   dm   {DM to dedisperse the data} \
+    -r 0.0 10000.0 -d 0.0
+
+
+# Rest of command line:
+Rest infile {Input file name(s) of the PSRFITS datafiles} \
+        -c 1 2000
