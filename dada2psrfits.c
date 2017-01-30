@@ -55,6 +55,7 @@ int main(int argc, char *argv[]) {
     strcpy(pf.hdr.project_id, "GBT09A-001");
     strcpy(pf.hdr.date_obs, "2010-01-01T05:15:30.000");
     strcpy(pf.hdr.poln_type, "LIN");
+    strcpy(pf.hdr.poln_order, "IQUV");
     strcpy(pf.hdr.track_mode, "TRACK");
     strcpy(pf.hdr.cal_mode, "OFF");
     strcpy(pf.hdr.feed_mode, "FA");
@@ -73,6 +74,7 @@ int main(int argc, char *argv[]) {
     pf.hdr.start_day = 55000;
     pf.hdr.scan_number = 3;
     pf.hdr.rcvr_polns = 2;
+    pf.hdr.onlyI = 0;
     pf.hdr.summed_polns = 0;
     pf.hdr.offset_subint = 0;
     pf.hdr.nchan = 2048;
