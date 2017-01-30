@@ -27,7 +27,7 @@ libpsrfits_utils_la_SOURCES = \
          write_psrfits.c 
 
 LDADD = libpsrfits_utils.la
-AM_CPPFLAGS = -DPSRFITS_TEMPLATE_DIR='"/Users/gdesvignes/src/psrfits_utils"'
+AM_CPPFLAGS = -DPSRFITS_TEMPLATE_DIR='"/media/part0/src/psrfits_utils"'
 
 bin_PROGRAMS = fold_psrfits psrfits_singlepulse psrfits_subband combine_mocks merge_psrfits fits_extract
 if HAVE_PGPLOT
