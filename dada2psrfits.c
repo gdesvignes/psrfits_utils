@@ -82,6 +82,9 @@ int main(int argc, char *argv[]) {
     pf.hdr.npol = 4;
     pf.hdr.chan_dm = 0.0;
     pf.hdr.fd_hand = 1;
+    pf.hdr.fd_sang = 0;
+    pf.hdr.fd_xyph = 0;
+    
     pf.hdr.be_phase = 1;
 
     pf.hdr.nsblk = 8192;
