@@ -46,6 +46,7 @@ int main(int argc, char *argv[]) {
 
     // Now set values for our hdrinfo structure
     pf.hdr.scanlen = 3600; // in sec
+    strcpy(pf.hdr.observer, "A. Eintein");
     strcpy(pf.hdr.telescope, "Effelsberg");
     strcpy(pf.hdr.obs_mode, "SEARCH");
     strcpy(pf.hdr.backend, "roach2");
@@ -79,7 +80,7 @@ int main(int argc, char *argv[]) {
     pf.hdr.orig_df = pf.hdr.df = pf.hdr.BW / pf.hdr.nchan;
     pf.hdr.nbits = 8;
     pf.hdr.npol = 4;
-
+    pf.hdr.chan_dm = 0.0;
     pf.hdr.fd_hand = 1;
     pf.hdr.be_phase = 1;
 
