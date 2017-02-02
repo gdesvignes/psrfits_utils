@@ -29,3 +29,6 @@ psrfits_subband
 mpimerge_psrfits
 find_dropped_blocks
 combine_mocks
+dada2psrfits
+merge_psrfits
+plot_psrfits
