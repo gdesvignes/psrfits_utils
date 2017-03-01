@@ -1,12 +1,13 @@
 ACLOCAL_AMFLAGS = -I config
 
 pkginclude_HEADERS = \
+	ascii_header.h \
 	dedisperse.h \
-        fold.h \
-        merge_psrfits.h \
-        polyco.h \
-        polyco_struct.h \
-        psrfits.h 
+	fold.h \
+    merge_psrfits.h \
+	polyco.h \
+	polyco_struct.h \
+	psrfits.h 
 
 noinst_HEADERS = 
 
@@ -16,15 +17,16 @@ dist_data_DATA = \
 
 lib_LTLIBRARIES = libpsrfits_utils.la
 libpsrfits_utils_la_SOURCES = \
-	 dedisperse.c \
-         downsample.c \
-         fold.c \
-	 merge_psrfits_thread.c \
-	 misc_utils.c \
-	 plot_psrfits_thread.c \
-         polyco.c \
-         read_psrfits.c \
-         write_psrfits.c 
+	ascii_header.c \
+	dedisperse.c \
+    downsample.c \
+	fold.c \
+	merge_psrfits_thread.c \
+	misc_utils.c \
+	plot_psrfits_thread.c \
+	polyco.c \
+    read_psrfits.c \
+    write_psrfits.c 
 
 LDADD = libpsrfits_utils.la
 AM_CPPFLAGS = -DPSRFITS_TEMPLATE_DIR='"/media/part0/src/psrfits_utils"'

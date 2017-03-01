@@ -3,7 +3,7 @@
 #include <string.h>
 #include <math.h>
 #include "psrfits.h"
-//#include "slalib.h"
+#include "ascii_header.h"
 
 #ifndef DEGTORAD
 #define DEGTORAD 0.017453292519943295769236907684886127134428718885417
@@ -13,7 +13,6 @@
 #endif
 
 #define DADA_HEADER_SIZE (4096)
-#define DADA_FRAME_SIZE (512)
 
 void dec2hms(char *out, double in, int sflag) {
     int sign = 1;
@@ -40,28 +39,62 @@ int main(int argc, char *argv[]) {
     FILE *pfi;
     printf("Filename = %s\n", argv[1]);
     pfi = fopen(argv[1], "r");
-    
+
+
+	char header[DADA_HEADER_SIZE];
+
+	if (fread (header, 1, DADA_HEADER_SIZE, pfi) != DADA_HEADER_SIZE) {
+	  fprintf (stderr, "Error getting header from %s\n", argv[1]);
+	  exit(-1);
+	}
+
+
+	//printf("Header:\n%s", header);
+	
     pf.filenum = 0;           // This is the crucial one to set to initialize things
     pf.rows_per_file = 200;  // Need to set this based on PSRFITS_MAXFILELEN
 
     // Now set values for our hdrinfo structure
-    pf.hdr.scanlen = 3600; // in sec
+    pf.hdr.scanlen = 86400; // in sec
     strcpy(pf.hdr.observer, "A. Eintein");
     strcpy(pf.hdr.telescope, "Effelsberg");
     strcpy(pf.hdr.obs_mode, "SEARCH");
     strcpy(pf.hdr.backend, "roach2");
-    strcpy(pf.hdr.source, "B0355+54");
+    strcpy(pf.hdr.source, "J1745-2900");
     strcpy(pf.hdr.frontend, "C+_rcvr");
-    strcpy(pf.hdr.project_id, "GBT09A-001");
-    strcpy(pf.hdr.date_obs, "2010-01-01T05:15:30.000");
+    strcpy(pf.hdr.project_id, "P84-16");
+
+	char date_obs[64];
+	if (ascii_header_get (header, "UTC_START", "%s", date_obs))
+	  strcpy(pf.hdr.date_obs, date_obs);
+	printf("date:%s\n", date_obs);
     strcpy(pf.hdr.poln_type, "LIN");
     strcpy(pf.hdr.poln_order, "IQUV");
     strcpy(pf.hdr.track_mode, "TRACK");
     strcpy(pf.hdr.cal_mode, "OFF");
     strcpy(pf.hdr.feed_mode, "FA");
-    pf.hdr.dt = 0.000016384;
-    pf.hdr.fctr = 5000.0;
-    pf.hdr.BW = 2000.0;
+
+	double sampling_interval=0.0;
+	if (ascii_header_get (header, "TSAMP", "%lf", &sampling_interval))
+	  pf.hdr.dt = sampling_interval*1e-6; // IMPORTANT: TSAMP is the sampling period in microseconds
+	
+	double freq;
+	if (ascii_header_get (header, "FREQ", "%lf", &freq))
+	  pf.hdr.fctr = freq;
+	printf("freq=%lf\n", freq);
+
+	double bw;
+	if (ascii_header_get (header, "BW", "%lf", &bw))
+	  pf.hdr.BW = bw;
+
+	int scan_nchan;
+	if (ascii_header_get (header, "NCHAN", "%d", &scan_nchan))
+	  pf.hdr.nchan = scan_nchan;
+
+	char MJD_start[64], *end;
+	if (ascii_header_get (header, "MJD_START", "%s", MJD_start))
+	  pf.hdr.MJD_epoch = strtold(MJD_start, &end);
+	
     pf.hdr.ra2000 = 302.0876876;
     dec2hms(pf.hdr.ra_str, pf.hdr.ra2000/15.0, 0);
     pf.hdr.dec2000 = -3.456987698;
@@ -77,7 +110,6 @@ int main(int argc, char *argv[]) {
     pf.hdr.onlyI = 0;
     pf.hdr.summed_polns = 0;
     pf.hdr.offset_subint = 0;
-    pf.hdr.nchan = 2048;
     pf.hdr.orig_nchan = pf.hdr.nchan;
     pf.hdr.orig_df = pf.hdr.df = pf.hdr.BW / pf.hdr.nchan;
     pf.hdr.nbits = 8;
@@ -85,16 +117,12 @@ int main(int argc, char *argv[]) {
     pf.hdr.chan_dm = 0.0;
     pf.hdr.fd_hand = 1;
     pf.hdr.fd_sang = 0;
-    pf.hdr.fd_xyph = 0;
-    
+    pf.hdr.fd_xyph = 0;    
     pf.hdr.be_phase = 1;
-
     pf.hdr.nsblk = 8192;
-
-    pf.hdr.MJD_epoch = 55555.123123123123123123L;  // Note the "L" for long double
     pf.hdr.ds_time_fact = 1;
     pf.hdr.ds_freq_fact = 1;
-    sprintf(pf.basefilename, "%s_%s", pf.hdr.backend, pf.hdr.source);
+    sprintf(pf.basefilename, "%s_%s_%05d", pf.hdr.backend, pf.hdr.source, (int) pf.hdr.MJD_epoch);
 
     psrfits_create(&pf);
 
@@ -135,7 +163,7 @@ int main(int argc, char *argv[]) {
     }
  
 
-    fseek(pfi, DADA_HEADER_SIZE, SEEK_SET);
+    //fseek(pfi, DADA_HEADER_SIZE, SEEK_SET);
 
     // This is what you would update for each time sample (likely just
     // adjusting the pointer to point to your data)
