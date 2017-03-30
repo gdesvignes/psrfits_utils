@@ -125,7 +125,7 @@ int main(int argc, char *argv[]) {
     pf.hdr.MJD_epoch = iheader.tstart;  // Note the "L" for long double
     pf.hdr.ds_time_fact = 1;
     pf.hdr.ds_freq_fact = 1;
-    sprintf(pf.basefilename, "%s_%d_%02d", pf.hdr.backend, pf.hdr.scan_number, pf.hdr.ibeam);
+    sprintf(pf.basefilename, "%s_%04d_%02d", pf.hdr.backend, pf.hdr.scan_number, pf.hdr.ibeam);
     fflush(stdout);
 
     psrfits_create(&pf);
