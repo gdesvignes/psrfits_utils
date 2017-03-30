@@ -24,12 +24,14 @@ libpsrfits_utils_la_SOURCES = \
 	 plot_psrfits_thread.c \
          polyco.c \
          read_psrfits.c \
-         write_psrfits.c 
+         write_psrfits.c \
+	read_fbk.c
 
 LDADD = libpsrfits_utils.la
 AM_CPPFLAGS = -DPSRFITS_TEMPLATE_DIR='"/Users/gdesvignes/src/psrfits_utils"'
 
-bin_PROGRAMS = fold_psrfits psrfits_singlepulse psrfits_subband combine_mocks merge_psrfits fits_extract dada2psrfits
+bin_PROGRAMS = fold_psrfits psrfits_singlepulse psrfits_subband combine_mocks merge_psrfits fits_extract dada2psrfits fbk2psrfits
+
 if HAVE_PGPLOT
 bin_PROGRAMS += plot_psrfits 
 endif
