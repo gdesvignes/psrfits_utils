@@ -188,7 +188,7 @@ int main(int argc, char *argv[]) {
     free(pf.sub.dat_weights);
     free(pf.sub.dat_offsets);
     free(pf.sub.dat_scales);
-    free(pf.sub.data);
+    free(pf.sub.rawdata);
 
     printf("Done.  Wrote %d subints (%f sec) in %d files.  status = %d\n", 
            pf.tot_rows, pf.T, pf.filenum, pf.status);
