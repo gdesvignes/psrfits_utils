@@ -242,6 +242,8 @@ char telescope_name_to_code(const char *name) {
     if (strcasecmp(name, "Effelsberg")==0) return('g');
     if (strcasecmp(name, "EFF")==0) return('g');
 
+	if (strcasecmp(name, "ALMA")==0) return('z');
+	
     /* Not found, return null */
     return('\0');
 }
@@ -347,7 +349,7 @@ int make_polycos(const char *parfile, struct hdrinfo *hdr,
     FILE *pcfile = fopen("polyco.dat", "r");
     if (pcfile==NULL) {
         fprintf(stderr, "make_polycos: Error reading polyco.dat\n");
-        make_polycos_cleanup();
+        //make_polycos_cleanup();
         return(-1);
     }
     int npc = read_all_pc(pcfile, pc);
