@@ -9,6 +9,14 @@
 
 #define DEBUGOUT 0
 
+void strreplace(char *str) {
+  int i=0;
+  while(str[i]!='\0') {
+	if(str[i]=='D') str[i]='E' ;
+	i++;
+	}
+}
+
 // Define different obs modes
 static const int search=SEARCH_MODE, fold=FOLD_MODE;
 int psrfits_obs_mode(const char *obs_mode) {
@@ -602,9 +610,10 @@ int psrfits_write_ephem(struct psrfits *pf, FILE *parfile) {
             // and then write it to the column.  These should all be
             // either double int or string.
             fits_get_coltype(pf->fptr,col,&dtype,NULL,NULL,status);
-            if (dtype==TDOUBLE || dtype==TFLOAT) { 
-                dval = atof(val);
-                fits_write_col(pf->fptr,TDOUBLE,col,row,1,1,&dval,status);
+			if (dtype==TDOUBLE || dtype==TFLOAT) {
+			  strreplace(val);
+			  dval = atof(val);
+			  fits_write_col(pf->fptr,TDOUBLE,col,row,1,1,&dval,status);
             } else if (dtype==TINT || dtype==TLONG || dtype==TSHORT) {
                 ival = atoi(val);
                 fits_write_col(pf->fptr,TINT,col,row,1,1,&ival,status);
