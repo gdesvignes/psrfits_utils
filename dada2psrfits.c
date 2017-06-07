@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include <math.h>
+#include <getopt.h>
 #include "psrfits.h"
 #include "ascii_header.h"
 
@@ -13,6 +15,16 @@
 #endif
 
 #define DADA_HEADER_SIZE (4096)
+
+void usage() {
+  printf(
+		 "Usage: fold_psrfits [options] input_filename_base\n"
+		 "Options:\n"
+		 "  -h, --help               Print this\n"
+		 "  -f fff, --freq=ffff      Set the centre frequency (MHz)\n"
+		 "  -i, --invert             Invert band\n"
+		 );
+}
 
 void dec2hms(char *out, double in, int sflag) {
     int sign = 1;
@@ -29,27 +41,52 @@ void dec2hms(char *out, double in, int sflag) {
 }
 
 int main(int argc, char *argv[]) {
-    int ii;
+
+  /* Cmd line */
+  static struct option long_opts[] = {
+	{"freq",    1, NULL, 'f'},
+	{"invert",  0, NULL, 'i'},
+	{"help",    0, NULL, 'h'},
+	{0,0,0,0}
+  };
+
+  int opt, opti;
+    int ii, jj;
     double dtmp;
     struct psrfits pf;
     
-    // Only set the basefilename and not "filename"
-    // Also, fptr will be set by psrfits_create_searchmode()
-
+	
+	
     FILE *pfi;
     printf("Filename = %s\n", argv[1]);
     pfi = fopen(argv[1], "r");
-
-
+	
+	
 	char header[DADA_HEADER_SIZE];
-
+	
 	if (fread (header, 1, DADA_HEADER_SIZE, pfi) != DADA_HEADER_SIZE) {
 	  fprintf (stderr, "Error getting header from %s\n", argv[1]);
 	  exit(-1);
 	}
-
-
-	//printf("Header:\n%s", header);
+	
+	double input_freq;
+	bool have_freq=false, have_invert=false;
+	while ((opt=getopt_long(argc,argv,"f:ih", long_opts,&opti))!=-1) {
+	  switch (opt) {
+	  case 'f':
+		input_freq = atoi(optarg);
+		have_freq=true;
+		break;
+	  case 'i':
+		have_invert=true;
+	  case 'h':
+	  default:
+		usage();
+		exit(0);
+		break;
+	}
+	  
+	  //printf("Header:\n%s", header);
 	
     pf.filenum = 0;           // This is the crucial one to set to initialize things
     pf.rows_per_file = 200;  // Need to set this based on PSRFITS_MAXFILELEN
@@ -67,7 +104,6 @@ int main(int argc, char *argv[]) {
 	char date_obs[64];
 	if (ascii_header_get (header, "UTC_START", "%s", date_obs))
 	  strcpy(pf.hdr.date_obs, date_obs);
-	printf("date:%s\n", date_obs);
     strcpy(pf.hdr.poln_type, "LIN");
     strcpy(pf.hdr.poln_order, "IQUV");
     strcpy(pf.hdr.track_mode, "TRACK");
@@ -81,24 +117,27 @@ int main(int argc, char *argv[]) {
 	double freq;
 	if (ascii_header_get (header, "FREQ", "%lf", &freq))
 	  pf.hdr.fctr = freq;
-	printf("freq=%lf\n", freq);
-
+	if (have_freq) pf.hdr.fctr = input_freq;
+	
 	double bw;
 	if (ascii_header_get (header, "BW", "%lf", &bw))
 	  pf.hdr.BW = bw;
 
-	int scan_nchan;
-	if (ascii_header_get (header, "NCHAN", "%d", &scan_nchan))
-	  pf.hdr.nchan = scan_nchan;
+	int nchan;
+	if (ascii_header_get (header, "NCHAN", "%d", &nchan))
+	  pf.hdr.nchan = nchan;
 
 	char MJD_start[64], *end;
 	if (ascii_header_get (header, "MJD_START", "%s", MJD_start))
 	  pf.hdr.MJD_epoch = strtold(MJD_start, &end);
+
+	printf("Finished reading DADA header\n");
 	
-    pf.hdr.ra2000 = 302.0876876;
+    pf.hdr.ra2000 = 266.41666667;
     dec2hms(pf.hdr.ra_str, pf.hdr.ra2000/15.0, 0);
-    pf.hdr.dec2000 = -3.456987698;
+    pf.hdr.dec2000 = -29.00833333;
     dec2hms(pf.hdr.dec_str, pf.hdr.dec2000, 1);
+
     pf.hdr.azimuth = 123.123;
     pf.hdr.zenith_ang = 23.0;
     pf.hdr.beam_FWHM = 0.25;
@@ -122,7 +161,7 @@ int main(int argc, char *argv[]) {
     pf.hdr.nsblk = 8192;
     pf.hdr.ds_time_fact = 1;
     pf.hdr.ds_freq_fact = 1;
-    sprintf(pf.basefilename, "%s_%s_%05d", pf.hdr.backend, pf.hdr.source, (int) pf.hdr.MJD_epoch);
+    sprintf(pf.basefilename, "%s_%s_%05d_%4d", pf.hdr.backend, pf.hdr.source, (int) pf.hdr.MJD_epoch, (int) pf.hdr.fctr);
 
     psrfits_create(&pf);
 
@@ -152,33 +191,51 @@ int main(int argc, char *argv[]) {
     pf.sub.dat_weights = (float *)malloc(sizeof(float) * pf.hdr.nchan);
     dtmp = pf.hdr.fctr - 0.5 * pf.hdr.BW + 0.5 * pf.hdr.df;
     for (ii = 0 ; ii < pf.hdr.nchan ; ii++) {
-        pf.sub.dat_freqs[ii] = dtmp + ii * pf.hdr.df;
-        pf.sub.dat_weights[ii] = 1.0;
+	  pf.sub.dat_freqs[ii] = dtmp + ii * pf.hdr.df;
+	  pf.sub.dat_weights[ii] = 1.0;
     }
     pf.sub.dat_offsets = (float *)malloc(sizeof(float) * pf.hdr.nchan * pf.hdr.npol);
     pf.sub.dat_scales = (float *)malloc(sizeof(float) * pf.hdr.nchan * pf.hdr.npol);
     for (ii = 0 ; ii < pf.hdr.nchan * pf.hdr.npol ; ii++) {
-        pf.sub.dat_offsets[ii] = 0.0;
-        pf.sub.dat_scales[ii] = 1.0;
+	  pf.sub.dat_offsets[ii] = 0.0;
+	  pf.sub.dat_scales[ii] = 1.0;
     }
  
 
     //fseek(pfi, DADA_HEADER_SIZE, SEEK_SET);
 
+	uint8_t swap, *sptr;
+	
     // This is what you would update for each time sample (likely just
     // adjusting the pointer to point to your data)
     pf.sub.rawdata = (unsigned char *)malloc(pf.sub.bytes_per_subint);
-   
+	
     // Here is the real data-writing loop
     do {
       // Update the pf.sub entries here for each subint
       // as well as the pf.sub.data pointer
       
       fread(pf.sub.rawdata, pf.sub.bytes_per_subint, 1, pfi);
-      pf.sub.offs = (pf.tot_rows + 0.5) * pf.sub.tsubint;
-      
-      psrfits_write_subint(&pf);
-    } while (pf.T < pf.hdr.scanlen && !feof (pfi) && !pf.status);
+	  
+	  // Flip the band if needed
+	  // Only works for 8-bit values
+	  if (have_invert) {
+		for (jj=0; jj<pf.hdr.nsblk * pf.hdr.npol; jj++) {
+		  sptr = (uint8_t *) &pf.sub.rawdata[jj*pf.hdr.nchan];
+		  for (ii=0; ii<nchan/2; ii++) {
+			swap = sptr[nchan-1-ii];
+			sptr[nchan-1-ii] = sptr[ii];
+			sptr[ii] = swap;
+		  }
+		}
+	  }
+		
+	  pf.sub.offs = (pf.tot_rows + 0.5) * pf.sub.tsubint;
+	  
+	  psrfits_write_subint(&pf);
+
+	  if feof (pfi) 
+	} while (pf.T < pf.hdr.scanlen && !feof (pfi) && !pf.status);
     
     // Close the last file and cleanup
     fits_close_file(pf.fptr, &(pf.status));
