@@ -4,8 +4,8 @@
 #include "fitsio.h"
 
 // The following is the max file length in GB, different for fold/search
-#define PSRFITS_MAXFILELEN_SEARCH 10L
-#define PSRFITS_MAXFILELEN_FOLD 1L
+#define PSRFITS_MAXFILELEN_SEARCH 50L
+#define PSRFITS_MAXFILELEN_FOLD 10L
 
 // The following is the template file to use to create a PSRFITS file.
 #define PSRFITS_SEARCH_TEMPLATE "guppi_PSRFITS_v3.4_search_template.txt"
