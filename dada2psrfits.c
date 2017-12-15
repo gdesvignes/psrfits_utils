@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <math.h>
 #include <getopt.h>
+#include <stdbool.h>
+#include <inttypes.h>
 #include "psrfits.h"
 #include "ascii_header.h"
 
@@ -18,11 +20,13 @@
 
 void usage() {
   printf(
-		 "Usage: fold_psrfits [options] input_filename_base\n"
+		 "Usage: dada2psrfits [options] input_filename_base\n"
 		 "Options:\n"
+		 "  -b, --b2020              Set default options for B2020+28 observations\n"
 		 "  -h, --help               Print this\n"
 		 "  -f fff, --freq=ffff      Set the centre frequency (MHz)\n"
 		 "  -i, --invert             Invert band\n"
+		 "  -j, --j2205              Set default options for J2205+6012 observations\n"
 		 );
 }
 
@@ -44,6 +48,8 @@ int main(int argc, char *argv[]) {
 
   /* Cmd line */
   static struct option long_opts[] = {
+	{"b2020",   0, NULL, 'b'},
+	{"j2205",   0, NULL, 'j'},
 	{"freq",    1, NULL, 'f'},
 	{"invert",  0, NULL, 'i'},
 	{"help",    0, NULL, 'h'},
@@ -54,42 +60,56 @@ int main(int argc, char *argv[]) {
     int ii, jj;
     double dtmp;
     struct psrfits pf;
-    
-	
-	
-    FILE *pfi;
-    printf("Filename = %s\n", argv[1]);
-    pfi = fopen(argv[1], "r");
-	
-	
-	char header[DADA_HEADER_SIZE];
-	
-	if (fread (header, 1, DADA_HEADER_SIZE, pfi) != DADA_HEADER_SIZE) {
-	  fprintf (stderr, "Error getting header from %s\n", argv[1]);
-	  exit(-1);
-	}
-	
+    long long nspec;    
 	double input_freq;
-	bool have_freq=false, have_invert=false;
-	while ((opt=getopt_long(argc,argv,"f:ih", long_opts,&opti))!=-1) {
+	bool have_freq=false, have_invert=false, is_b2020=false, do_break=false, is_j2205=false;
+	while ((opt=getopt_long(argc,argv,"bjf:ih", long_opts,&opti))!=-1) {
 	  switch (opt) {
+	  case 'b':
+		is_b2020=true;
+		break;
+	  case 'j':
+		is_j2205=true;
+		break;
 	  case 'f':
 		input_freq = atoi(optarg);
 		have_freq=true;
 		break;
 	  case 'i':
 		have_invert=true;
+		break;
 	  case 'h':
 	  default:
 		usage();
 		exit(0);
 		break;
+	  }
 	}
-	  
-	  //printf("Header:\n%s", header);
+
+	if (optind==argc) {
+	  usage();
+	  exit(1);
+	}
+
+    FILE *pfi;
+	char filename[256], sfn[256];
+	strcpy(filename, argv[optind]);
+	uint64_t fs;
+	//sscanf(filename,"%*[^_]_%"PRIu64".000000.dada", &fs);
+	sscanf(filename,"%[^_]_%"PRIu64".000000.dada", sfn, &fs);
+	printf("sfn = %s  fs = %"PRIu64"\n", sfn, fs);
+	printf("Opening file %s\n", filename);
+	pfi = fopen(filename, "r");
+
+	char header[DADA_HEADER_SIZE];
+
+	if (fread (header, 1, DADA_HEADER_SIZE, pfi) != DADA_HEADER_SIZE) {
+	  fprintf (stderr, "Error getting header from %s\n", filename);
+	  exit(-1);
+	}
 	
     pf.filenum = 0;           // This is the crucial one to set to initialize things
-    pf.rows_per_file = 200;  // Need to set this based on PSRFITS_MAXFILELEN
+    pf.rows_per_file = 200;  // Need to set this based on PSR
 
     // Now set values for our hdrinfo structure
     pf.hdr.scanlen = 86400; // in sec
@@ -131,7 +151,8 @@ int main(int argc, char *argv[]) {
 	if (ascii_header_get (header, "MJD_START", "%s", MJD_start))
 	  pf.hdr.MJD_epoch = strtold(MJD_start, &end);
 
-	printf("Finished reading DADA header\n");
+	uint64_t file_size;
+	ascii_header_get (header, "FILE_SIZE", "%"PRIu64"", &file_size);
 	
     pf.hdr.ra2000 = 266.41666667;
     dec2hms(pf.hdr.ra_str, pf.hdr.ra2000/15.0, 0);
@@ -161,7 +182,20 @@ int main(int argc, char *argv[]) {
     pf.hdr.nsblk = 8192;
     pf.hdr.ds_time_fact = 1;
     pf.hdr.ds_freq_fact = 1;
-    sprintf(pf.basefilename, "%s_%s_%05d_%4d", pf.hdr.backend, pf.hdr.source, (int) pf.hdr.MJD_epoch, (int) pf.hdr.fctr);
+
+	if (is_b2020) {
+	  sprintf(pf.hdr.source, "B2020+28");
+	  sprintf(pf.hdr.ra_str, "20:22:37.070");
+	  sprintf(pf.hdr.dec_str, "+28:54:23.10");
+	}
+
+	if (is_j2205) {
+	  sprintf(pf.hdr.source, "J2205+6012");
+	  sprintf(pf.hdr.ra_str, "22:05:34.2016");
+	  sprintf(pf.hdr.dec_str, "+60:12:55.1417");
+	}
+	
+	sprintf(pf.basefilename, "%s_%s_%05d_%4d", pf.hdr.backend, pf.hdr.source, (int) pf.hdr.MJD_epoch, (int) pf.hdr.fctr);
 
     psrfits_create(&pf);
 
@@ -202,8 +236,6 @@ int main(int argc, char *argv[]) {
     }
  
 
-    //fseek(pfi, DADA_HEADER_SIZE, SEEK_SET);
-
 	uint8_t swap, *sptr;
 	
     // This is what you would update for each time sample (likely just
@@ -214,8 +246,31 @@ int main(int argc, char *argv[]) {
     do {
       // Update the pf.sub entries here for each subint
       // as well as the pf.sub.data pointer
-      
-      fread(pf.sub.rawdata, pf.sub.bytes_per_subint, 1, pfi);
+      nspec = fread(pf.sub.rawdata, pf.hdr.nbits * pf.hdr.nchan * pf.hdr.npol/8, pf.hdr.nsblk, pfi);
+
+      if (feof (pfi) ) {
+		// Close file
+		printf("Closing file %s\n", filename);
+		fclose(pfi);
+		fs += file_size;
+		sprintf(filename, "%s_%016"PRIu64".000000.dada", sfn, fs);
+
+		if ( (pfi = fopen(filename, "r")) != NULL) {
+		  printf("Opening file %s\n", filename);
+		  fread (header, 1, DADA_HEADER_SIZE, pfi);
+		}
+		else {
+		  break;
+		}
+	  }
+
+	  // Need to read some more data from new file if there is 
+	  if (nspec < pf.hdr.nsblk) {
+	    fread(&pf.sub.rawdata[nspec*pf.hdr.nbits * pf.hdr.nchan * pf.hdr.npol/8],
+					  pf.hdr.nbits * pf.hdr.nchan * pf.hdr.npol/8, pf.hdr.nsblk-nspec, pfi);
+		//nspec+=nspec2;
+
+	  }
 	  
 	  // Flip the band if needed
 	  // Only works for 8-bit values
@@ -234,8 +289,8 @@ int main(int argc, char *argv[]) {
 	  
 	  psrfits_write_subint(&pf);
 
-	  if feof (pfi) 
-	} while (pf.T < pf.hdr.scanlen && !feof (pfi) && !pf.status);
+	  //} while (pf.T < pf.hdr.scanlen && !feof (pfi) && !pf.status);
+	} while (pf.T < pf.hdr.scanlen && !feof (pfi));
     
     // Close the last file and cleanup
     fits_close_file(pf.fptr, &(pf.status));
