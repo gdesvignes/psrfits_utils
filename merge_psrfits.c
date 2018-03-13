@@ -80,6 +80,7 @@ static void print_percent_complete(int current, int number, int reset)
 int main(int argc, char *argv[]) {
 
     int i, j, status=0;
+    char *fn;
     Cmdline *cmd;
 
     // Call usage() if we have no command line arguments
@@ -167,14 +168,17 @@ int main(int argc, char *argv[]) {
     memcpy(&pf, &fargs[0].pf, sizeof(fargs[0].pf));
 	
     // -- Modify some parameters of the merged PSRFITS file from the non merged --
-    adr = (char *) strrchr(pf.basefilename, '_');
-    sprintf(adr, "\0");
+	(fn = strrchr(filename, '/')) ? ++fn : (fn = filename);
+	adr = (char *) strrchr(fn, '_');
+	sprintf(adr, "\0");
     
     if(cmd->outdir) {
 	  char tmpbasefilename[200];
-	  sprintf(tmpbasefilename, "%s/%s", cmd->outdir, pf.basefilename);
+	  sprintf(tmpbasefilename, "%s/%s", cmd->outdir, fn);
 	  strncpy(pf.basefilename, tmpbasefilename, 200);
-    }	
+    } else {
+	  strncpy(pf.basefilename, fn, 200);
+	}
 	
 	
     sprintf(pf.hdr.obs_mode, "SEARCH");
@@ -214,7 +218,7 @@ int main(int argc, char *argv[]) {
 	  fargs[i].pf.sub.dat_offsets = (float *) &pf.sub.dat_offsets[fargs[i].chan_id * nchan * npol];
 	  fargs[i].pf.sub.dat_scales  = (float *) &pf.sub.dat_scales[fargs[i].chan_id * nchan * npol];
 	  fargs[i].pf.sub.rawdata = (unsigned char *) &tmpbuf[fargs[i].chan_id * bytes_per_subint];
-        fargs[i].pf.sub.data = (unsigned char *) &tmpbuf[fargs[i].chan_id * bytes_per_subint];
+	  fargs[i].pf.sub.data = (unsigned char *) &tmpbuf[fargs[i].chan_id * bytes_per_subint];
     }
 	
     // -- Loop through the data --
