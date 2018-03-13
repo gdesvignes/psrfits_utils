@@ -9,6 +9,14 @@
 
 #define DEBUGOUT 0
 
+void strreplace(char *str) {
+  int i=0;
+  while(str[i]!='\0') {
+	if(str[i]=='D') str[i]='E' ;
+	i++;
+	}
+}
+
 // Define different obs modes
 static const int search=SEARCH_MODE, fold=FOLD_MODE;
 int psrfits_obs_mode(const char *obs_mode) {
@@ -100,7 +108,8 @@ int psrfits_create(struct psrfits *pf) {
     printf("Opening file '%s' ", pf->filename);
     if (mode==search) { 
         printf("in search mode.\n");
-        sprintf(template_file, "%s/%s", template_dir, PSRFITS_SEARCH_TEMPLATE);
+	if (hdr->nbits == 32) sprintf(template_file, "%s/%s", template_dir, PSRFITS_SEARCH32_TEMPLATE);
+        else sprintf(template_file, "%s/%s", template_dir, PSRFITS_SEARCH_TEMPLATE);
     } else if (mode==fold) { 
         printf("in fold mode.\n");
         sprintf(template_file, "%s/%s", template_dir, PSRFITS_FOLD_TEMPLATE);
@@ -278,6 +287,7 @@ int psrfits_create(struct psrfits *pf) {
         if (mode==search) {
             lltmp = out_nsblk;
             lltmp = (lltmp * hdr->nbits * out_nchan * out_npol) / 8L;
+	    if (hdr->nbits ==32) lltmp/=sizeof(float);
         } else if (mode==fold)
             lltmp = (hdr->nbin * out_nchan * out_npol);
         fits_modify_vector_len(pf->fptr, 17, lltmp, status); // DATA
@@ -353,9 +363,15 @@ int psrfits_write_subint(struct psrfits *pf) {
     fits_write_col(pf->fptr, TFLOAT, 15, row, 1, nivals, sub->dat_offsets, status);
     fits_write_col(pf->fptr, TFLOAT, 16, row, 1, nivals, sub->dat_scales, status);
     if (mode==search) {
+      if (hdr->nbits==32) {
+	fits_write_col(pf->fptr, TFLOAT, 17, row, 1, out_nbytes/sizeof(float),                                  
+		       sub->rawdata, status);
+      }
+      else {
         if (hdr->nbits==4) pf_8bit_to_4bit(pf);
         fits_write_col(pf->fptr, TBYTE, 17, row, 1, out_nbytes, 
                        sub->rawdata, status);
+      }
     } else if (mode==fold) { 
         // Fold mode writes floats for now..
         fits_write_col(pf->fptr, TFLOAT, 17, row, 1, out_nbytes/sizeof(float), 
@@ -594,9 +610,10 @@ int psrfits_write_ephem(struct psrfits *pf, FILE *parfile) {
             // and then write it to the column.  These should all be
             // either double int or string.
             fits_get_coltype(pf->fptr,col,&dtype,NULL,NULL,status);
-            if (dtype==TDOUBLE || dtype==TFLOAT) { 
-                dval = atof(val);
-                fits_write_col(pf->fptr,TDOUBLE,col,row,1,1,&dval,status);
+			if (dtype==TDOUBLE || dtype==TFLOAT) {
+			  strreplace(val);
+			  dval = atof(val);
+			  fits_write_col(pf->fptr,TDOUBLE,col,row,1,1,&dval,status);
             } else if (dtype==TINT || dtype==TLONG || dtype==TSHORT) {
                 ival = atoi(val);
                 fits_write_col(pf->fptr,TINT,col,row,1,1,&ival,status);

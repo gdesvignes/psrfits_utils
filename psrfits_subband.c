@@ -13,7 +13,7 @@
 
 extern double delay_from_dm(double dm, double freq_emitted);
 extern int split_root_suffix(char *input, char **root, char **suffix);
-extern void avg_std(float *x, int n, double *mean, double *std, int stride);
+extern void average_std(float *x, int n, double *mean, double *std, int stride);
 extern void split_path_file(char *input, char **path, char **file);
 extern void get_stokes_I(struct psrfits *pf);
 extern void downsample_time(struct psrfits *pf);
@@ -77,7 +77,7 @@ void print_raw_chan_stats(unsigned char *data, int nspect, int nchan, int npol){
         // Grab the raw data
         for (jj = 0 ; jj < nspect ; jj++)
             tmparr[jj] = (float)data[npol * nchan * jj + ii];
-        avg_std(tmparr, nspect, &avg, &std, 1);
+        average_std(tmparr, nspect, &avg, &std, 1);
         printf("%4d: %10.3f %10.3f\n", ii, avg, std);
     }
     free(tmparr);
@@ -90,7 +90,7 @@ void get_chan_stats(struct psrfits *pfi, struct subband_info *si){
 
     for (ii = 0 ; ii < si->bufwid ; ii++) {
         // Only use 1/8 of the total length in order to speed things up
-        avg_std(pfi->sub.fdata + ii, si->buflen / 8, &avg, &std, si->bufwid);
+        average_std(pfi->sub.fdata + ii, si->buflen / 8, &avg, &std, si->bufwid);
         //printf("%d %f %f\n", ii, avg, std);
         si->chan_avgs[ii] = avg;
         si->chan_stds[ii] = std;
@@ -113,7 +113,7 @@ void new_scales_and_offsets(struct psrfits *pfo, int numunsigned) {
         float *out_offs = pfo->sub.dat_offsets + poln * nchan;
         for (ii = 0 ; ii < nchan ; ii++) {
             float *fptr = pfo->sub.fdata + poln * nchan + ii;
-            avg_std(fptr, nspec, &avg, &std, bufwid);
+            average_std(fptr, nspec, &avg, &std, bufwid);
             out_scls[ii] = std / target_std;
             out_offs[ii] = avg - (target_avg * out_scls[ii]);
         }

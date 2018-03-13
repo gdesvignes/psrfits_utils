@@ -4,10 +4,15 @@ AC_CONFIG_MACRO_DIR([config])
 AC_CONFIG_AUX_DIR([config])
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 
+m4_pattern_allow([AM_PROG_AR])
+AM_PROG_AR
 AC_PROG_CC
 AC_PROG_LIBTOOL
 
 AX_PTHREAD
+SWIN_LIB_PGPLOT
+SWIN_LIB_PRESTO
+SWIN_LIB_CFITSIO
 
 AC_CHECK_LIB([m],[sin])
 AC_CHECK_LIB([cfitsio],[ffgky],[],
