@@ -97,13 +97,13 @@ int psrfits_create(struct psrfits *pf) {
 #ifdef PSRFITS_TEMPLATE_DIR
     sprintf(template_dir, "%s", PSRFITS_TEMPLATE_DIR);
 #else
-    char *guppi_dir = getenv("GUPPI_DIR");
-    if (guppi_dir==NULL) {
+    char *psrfits_dir = getenv("PSRFITS_UTILS");
+    if (psrfits_dir==NULL) {
         fprintf(stderr, 
-                "Error: GUPPI_DIR environment variable not set, exiting.\n");
+                "Error: PSRFITS_UTILS environment variable not set, exiting.\n");
         exit(1);
     }
-    sprintf(template_dir, "%s/src", guppi_dir);
+    sprintf(template_dir, "%s/src", psrfits_dir);
 #endif
     printf("Opening file '%s' ", pf->filename);
     if (mode==search) { 
