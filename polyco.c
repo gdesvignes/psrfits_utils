@@ -242,6 +242,7 @@ char telescope_name_to_code(const char *name) {
     if (strcasecmp(name, "Effelsberg")==0) return('g');
     if (strcasecmp(name, "EFF")==0) return('g');
 	if (strcasecmp(name, "PICO VELETA")==0) return('v');
+	if (strcasecmp(name, "Pico Veleta")==0) return('v');
 
 	if (strcasecmp(name, "ALMA")==0) return('z');
 	
