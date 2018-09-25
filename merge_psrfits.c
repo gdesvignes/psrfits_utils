@@ -109,6 +109,7 @@ int main(int argc, char *argv[]) {
 	  sprintf(fargs[i].pf.basefilename, "%s", filename);
 	  fargs[i].pf.filenum = 1;
 	  fargs[i].pf.filename[0] = '\0';  
+	  fargs[i].pf.numfiles = 0;
 	  fargs[i].pf.status = 0;
 	  status = psrfits_open(&fargs[i].pf);
 	  if (status) fits_report_error(stderr, status);
