@@ -121,7 +121,7 @@ int main(int argc, char *argv[]) {
 	
     pf.filenum = 0;           // This is the crucial one to set to initialize things
     pf.rows_per_file = 200;  // Need to set this based on PSR
-
+	pf.hdr.nbits = 8;
     // Now set values for our hdrinfo structure
     pf.hdr.scanlen = 86400; // in sec
     strcpy(pf.hdr.observer, "A. Eintein");
@@ -161,6 +161,10 @@ int main(int argc, char *argv[]) {
 	if (ascii_header_get (header, "NCHAN", "%d", &nchan))
 	  pf.hdr.nchan = nchan;
 
+	int nbits;
+	if (ascii_header_get (header, "NBITS", "%d", &nchan))
+	  pf.hdr.nbits = nbits;
+
 	char MJD_start[64], *end;
 	if (ascii_header_get (header, "MJD_START", "%s", MJD_start))
 	  pf.hdr.MJD_epoch = strtold(MJD_start, &end);
@@ -181,7 +185,6 @@ int main(int argc, char *argv[]) {
     pf.hdr.offset_subint = 0;
     pf.hdr.orig_nchan = pf.hdr.nchan;
     pf.hdr.orig_df = pf.hdr.df = pf.hdr.BW / pf.hdr.nchan;
-    pf.hdr.nbits = 8;
     pf.hdr.npol = 4;
     pf.hdr.chan_dm = 0.0;
     pf.hdr.fd_hand = 1;
@@ -218,7 +221,8 @@ int main(int argc, char *argv[]) {
     pf.sub.tel_zen = pf.hdr.zenith_ang;
     pf.sub.bytes_per_subint = (pf.hdr.nbits * pf.hdr.nchan * 
                                pf.hdr.npol * pf.hdr.nsblk) / 8;
-    pf.sub.FITS_typecode = TBYTE;  // 11 = byte
+	if (pf.hdr.nbits==32) pf.sub.FITS_typecode = TFLOAT;
+    else pf.sub.FITS_typecode = TBYTE;  // 11 = byte
 
     // Create and initialize the subint arrays
     pf.sub.dat_freqs = (float *)malloc(sizeof(float) * pf.hdr.nchan);
