@@ -22,11 +22,13 @@ void usage() {
   printf(
 		 "Usage: dada2psrfits [options] input_filename_base\n"
 		 "Options:\n"
-		 "  -b, --b2020              Set default options for B2020+28 observations\n"
 		 "  -h, --help               Print this\n"
 		 "  -f fff, --freq=ffff      Set the centre frequency (MHz)\n"
 		 "  -i, --invert             Invert band\n"
-		 "  -j, --j2205              Set default options for J2205+6012 observations\n"
+		 "  -p, --psrname            Set PSRNAME string in psrfits archive\n"
+		 "  -r, --ra                 Set RA string in psrfits archive\n"
+		 "  -d, --dec                Set DEC string in psrfits archive\n"
+		 "  -v, --pv                 Set Pico Veleta as the observatory\n"
 		 );
 }
 
@@ -48,11 +50,13 @@ int main(int argc, char *argv[]) {
 
   /* Cmd line */
   static struct option long_opts[] = {
-	{"b2020",   0, NULL, 'b'},
-	{"j2205",   0, NULL, 'j'},
 	{"freq",    1, NULL, 'f'},
 	{"invert",  0, NULL, 'i'},
 	{"help",    0, NULL, 'h'},
+	{"psrname", 0, NULL, 'p'},
+	{"ra",      0, NULL, 'r'},
+	{"dec",     0, NULL, 'd'},
+	{"pv",      0, NULL, 'v'},
 	{0,0,0,0}
   };
 
@@ -62,14 +66,12 @@ int main(int argc, char *argv[]) {
     struct psrfits pf;
     long long nspec;    
 	double input_freq;
-	bool have_freq=false, have_invert=false, is_b2020=false, do_break=false, is_j2205=false;
-	while ((opt=getopt_long(argc,argv,"bjf:ih", long_opts,&opti))!=-1) {
+	bool have_freq=false, have_invert=false, do_break=false, is_pico=false;
+	char ra_str[16], dec_str[16], source[24];
+	while ((opt=getopt_long(argc,argv,"d:f:ir:p:vh", long_opts,&opti))!=-1) {
 	  switch (opt) {
-	  case 'b':
-		is_b2020=true;
-		break;
-	  case 'j':
-		is_j2205=true;
+	  case 'd':
+		strncpy(dec_str, optarg, 16);
 		break;
 	  case 'f':
 		input_freq = atoi(optarg);
@@ -77,6 +79,15 @@ int main(int argc, char *argv[]) {
 		break;
 	  case 'i':
 		have_invert=true;
+		break;
+	  case 'r':
+		strncpy(ra_str, optarg, 16);
+		break;
+	  case 'p':
+		strncpy(source, optarg, 24);
+		break;
+	  case 'v':
+		is_pico=true;
 		break;
 	  case 'h':
 	  default:
@@ -114,10 +125,13 @@ int main(int argc, char *argv[]) {
     // Now set values for our hdrinfo structure
     pf.hdr.scanlen = 86400; // in sec
     strcpy(pf.hdr.observer, "A. Eintein");
-    strcpy(pf.hdr.telescope, "Effelsberg");
+	if (is_pico)
+	  strcpy(pf.hdr.telescope, "Pico Veleta");
+	else 
+	  strcpy(pf.hdr.telescope, "Effelsberg");
     strcpy(pf.hdr.obs_mode, "SEARCH");
     strcpy(pf.hdr.backend, "roach2");
-    strcpy(pf.hdr.source, "J1745-2900");
+    strcpy(pf.hdr.source, source);
     strcpy(pf.hdr.frontend, "C+_rcvr");
     strcpy(pf.hdr.project_id, "P84-16");
 
@@ -154,11 +168,6 @@ int main(int argc, char *argv[]) {
 	uint64_t file_size;
 	ascii_header_get (header, "FILE_SIZE", "%"PRIu64"", &file_size);
 	
-    pf.hdr.ra2000 = 266.41666667;
-    dec2hms(pf.hdr.ra_str, pf.hdr.ra2000/15.0, 0);
-    pf.hdr.dec2000 = -29.00833333;
-    dec2hms(pf.hdr.dec_str, pf.hdr.dec2000, 1);
-
     pf.hdr.azimuth = 123.123;
     pf.hdr.zenith_ang = 23.0;
     pf.hdr.beam_FWHM = 0.25;
@@ -183,18 +192,9 @@ int main(int argc, char *argv[]) {
     pf.hdr.ds_time_fact = 1;
     pf.hdr.ds_freq_fact = 1;
 
-	if (is_b2020) {
-	  sprintf(pf.hdr.source, "B2020+28");
-	  sprintf(pf.hdr.ra_str, "20:22:37.070");
-	  sprintf(pf.hdr.dec_str, "+28:54:23.10");
-	}
+	sprintf(pf.hdr.ra_str, ra_str);
+	sprintf(pf.hdr.dec_str, dec_str);
 
-	if (is_j2205) {
-	  sprintf(pf.hdr.source, "J2205+6012");
-	  sprintf(pf.hdr.ra_str, "22:05:34.2016");
-	  sprintf(pf.hdr.dec_str, "+60:12:55.1417");
-	}
-	
 	sprintf(pf.basefilename, "%s_%s_%05d_%4d", pf.hdr.backend, pf.hdr.source, (int) pf.hdr.MJD_epoch, (int) pf.hdr.fctr);
 
     psrfits_create(&pf);
