@@ -212,7 +212,7 @@ static int TOMS_gcd(int a, int b)
 }
 
 
-short transpose_bytes(unsigned char *a, int nx, int ny, unsigned char *move,
+short transpose_bytes_inplace(unsigned char *a, int nx, int ny, unsigned char *move,
                       int move_size)
 /*
  * TOMS Transpose.  Revised version of algorithm 380.
