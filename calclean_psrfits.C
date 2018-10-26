@@ -8,6 +8,8 @@
 #include <inttypes.h>
 #include "psrfits.h"
 
+#include <iostream>
+
 #ifdef HAVE_PSRCHIVE
 #include <PolnCalibrator.h>
 #endif
@@ -30,12 +32,16 @@ int main(int argc, char *argv[]) {
   };
 
   int status,opt, opti;
+  int run=1,nchan_per_loop=1;
   struct psrfits pfi, pf;
   char ra_str[16], dec_str[16], source[24];
   char cal_file[128];
   bool have_cal_file=false;
   while ((opt=getopt_long(argc,argv,"c:h", long_opts,&opti))!=-1) {
       switch (opt) {
+      case 'n':
+	  nchan_per_loop = atoi(optarg);
+	  break;
       case 'c':
 	  strncpy(cal_file, optarg, 128);
 	  have_cal_file = true;
@@ -67,8 +73,12 @@ int main(int argc, char *argv[]) {
   pfi.sub.dat_weights = (float *)malloc(sizeof(float) * pf.hdr.nchan);
   pfi.sub.dat_offsets = (float *)malloc(sizeof(float) * pf.hdr.nchan * pf.hdr.npol);
   pfi.sub.dat_scales  = (float *)malloc(sizeof(float) * pf.hdr.nchan * pf.hdr.npol);
-  pfi.sub.rawdata = (unsigned char *)malloc(pfi.sub.bytes_per_subint);
+  //pfi.sub.rawdata = (unsigned char *)malloc(pfi.sub.bytes_per_subint);
   pfi.sub.data = (unsigned char *)malloc(pfi.sub.bytes_per_subint);
+
+  // Default is to process all channels at once
+  if (nchan_per_loop==1)
+      nchan_per_loop = pf.hdr.nchan;
 
 #ifdef HAVE_PSRCHIVE  
   // If CAL, construct
@@ -97,9 +107,12 @@ int main(int argc, char *argv[]) {
   psrfits_create(&pf);
 
 
-  for (int iloop=0; iloop<pf.hdr.nchan; iloop+=nchanperloop) {
-      
+  for (int iloop=0; iloop<pf.hdr.nchan; iloop+=nchan_per_loop) {
 
+      // Need to rewind the pfi file
+      run = 1;
+
+      // Read the full time series
       int rv = 0;
       while (run) {
 
@@ -111,10 +124,11 @@ int main(int argc, char *argv[]) {
 	      break;
 	  }
 
-	  // realloc, copy data
+	  // realloc, reorder, append data into larger array
 
       }
 
+#if 0
       // Create threads
       for (i=0; i<numfiles; i++) {
 	  status = pthread_create(&threads[i], NULL, &merge_psrfits_thread, &fargs[i]);
@@ -130,7 +144,7 @@ int main(int argc, char *argv[]) {
       }
       for (i=0; i<numfiles; i++)  statsum += fargs[i].status;
       if (statsum) break;
-
+#endif
   }
 
 
@@ -138,7 +152,7 @@ int main(int argc, char *argv[]) {
 	
     // This is what you would update for each time sample (likely just
     // adjusting the pointer to point to your data)
-    pf.sub.rawdata = (unsigned char *)malloc(pf.sub.bytes_per_subint);
+    //pf.sub.rawdata = (unsigned char *)malloc(pf.sub.bytes_per_subint);
 	
     // Here is the real data-writing loop
     do {

@@ -12,7 +12,7 @@ AC_DEFUN([SWIN_LIB_PRESTO],
   PRESTO_LIBS="-L$PRESTO/lib -lpresto"
 
   ac_save_CFLAGS="$CFLAGS"
-  ac_save_LIBS="$LIBS"
+  ac_save_LIBS="$LIBS $FFTW_LIBS"
 
   LIBS="$ac_save_LIBS $PRESTO_LIBS"
   CFLAGS="$ac_save_CFLAGS $PRESTO_CFLAGS"

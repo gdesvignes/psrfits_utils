@@ -18,6 +18,7 @@ dist_data_DATA = \
 lib_LTLIBRARIES = libpsrfits_utils.la
 libpsrfits_utils_la_SOURCES = \
 	ascii_header.c \
+	calclean_psrfits_thread.c \
 	dedisperse.c \
         downsample.c \
 	fold.c \
@@ -32,7 +33,7 @@ libpsrfits_utils_la_SOURCES = \
 LDADD = libpsrfits_utils.la
 AM_CPPFLAGS = -DPSRFITS_TEMPLATE_DIR='"$(PSRFITS_UTILS)"'
 
-bin_PROGRAMS = fold_psrfits psrfits_singlepulse psrfits_subband combine_mocks merge_psrfits fits_extract dada2psrfits fbk2psrfits
+bin_PROGRAMS = fold_psrfits psrfits_singlepulse psrfits_subband combine_mocks merge_psrfits fits_extract dada2psrfits fbk2psrfits calclean_psrfits
 
 if HAVE_PGPLOT
 bin_PROGRAMS += plot_psrfits 
@@ -54,6 +55,13 @@ merge_psrfits_SOURCES = merge_psrfits.c \
 merge_psrfits_CFLAGS = @PTHREAD_CFLAGS@ $(AM_CFLAGS)
 merge_psrfits_LDFLAGS = @PTHREAD_CFLAGS@ $(AM_LDFLAGS)
 merge_psrfits_LDADD = libpsrfits_utils.la @PTHREAD_LIBS@
+
+
+calclean_psrfits_SOURCES = calclean_psrfits.C
+
+calclean_psrfits_CFLAGS = @PTHREAD_CFLAGS@ $(AM_CFLAGS)
+calclean_psrfits_LDFLAGS = @PTHREAD_CFLAGS@ $(AM_LDFLAGS)
+calclean_psrfits_LDADD = libpsrfits_utils.la @PTHREAD_LIBS@
 
 
 if HAVE_PGPLOT

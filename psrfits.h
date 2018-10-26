@@ -1,6 +1,10 @@
 /* psrfits.h */
 #ifndef _PSRFITS_H
 #define _PSRFITS_H
+
+#ifdef __cplusplus
+extern "C"{
+#endif
 #include "fitsio.h"
 
 // The following is the max file length in GB, different for fold/search
@@ -142,5 +146,9 @@ int psrfits_read_subint(struct psrfits *pf);
 int psrfits_read_part_DATA(struct psrfits *pf, int N, int numunsigned, 
                            float *fbuffer);
 void scale_and_offset_data(struct psrfits *pf, int numunsigned);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
