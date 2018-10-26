@@ -25,34 +25,6 @@ void reorder_data(unsigned char* outbuf, unsigned char *inbuf, int nband, int ns
   }
 }
 
-void copy_subint_params(struct psrfits *pfo, struct psrfits *pfi) {
-  
-  
-  struct subint *sub_in, *sub_out;
-  sub_in = &(pfi->sub);
-  sub_out = &(pfo->sub);
-  
-  sub_out->tsubint = sub_in->tsubint;
-  sub_out->offs = sub_in->offs;
-  sub_out->lst = sub_in->lst;
-  sub_out->ra = sub_in->ra;
-  sub_out->dec = sub_in->dec;
-  sub_out->glon = sub_in->glon;
-  sub_out->glat = sub_in->glat;
-  sub_out->feed_ang = sub_in->feed_ang;
-  sub_out->pos_ang = sub_in->pos_ang;
-  sub_out->par_ang = sub_in->par_ang;
-  sub_out->tel_az = sub_in->tel_az;
-  sub_out->tel_zen = sub_in->tel_zen;
-  /*
-	sub_out.dat_freqs = (float *) &pf.sub.dat_freqs[fargs[i].chan_id * nchan];
-    sub_out.dat_weights = (float *) &pf.sub.dat_weights[fargs[i].chan_id * nchan];
-    sub_out.dat_offsets = (float *) &pf.sub.dat_offsets[fargs[i].chan_id * nchan * npol];
-    sub_out.dat_scales  = (float *) &pf.sub.dat_scales[fargs[i].chan_id * nchan * npol];
-    sub_out.data = (unsigned char *) &tmpbuf[fargs[i].chan_id * bytes_per_subint];
-  */
-}
-
 static void print_percent_complete(int current, int number, int reset)
 {
   static int newper = 0, oldper = -1;

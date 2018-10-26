@@ -137,6 +137,7 @@ int psrfits_close(struct psrfits *pf);
 int psrfits_obs_mode(const char *obs_mode);
 int psrfits_remove_polycos(struct psrfits *pf);
 int psrfits_remove_ephem(struct psrfits *pf);
+void copy_subint_params(struct psrfits *pfo, struct psrfits *pfi);
 
 // In read_psrfits.c
 int is_search_PSRFITS(char *filename);
