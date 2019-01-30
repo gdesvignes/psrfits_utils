@@ -85,7 +85,7 @@ struct subint {
     double par_ang;         // Parallactic angle at subint centre (deg)
     double tel_az;          // Telescope azimuth at subint centre (deg)
     double tel_zen;         // Telescope zenith angle at subint centre (deg)
-    int bytes_per_subint;   // Number of bytes for one row of raw data
+    long int bytes_per_subint;   // Number of bytes for one row of raw data
     int FITS_typecode;      // FITS data typecode as per CFITSIO
     float *dat_freqs;       // Ptr to array of Centre freqs for each channel (MHz)
     float *dat_weights;     // Ptr to array of Weights for each channel
