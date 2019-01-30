@@ -153,6 +153,10 @@ int psrfits_open(struct psrfits *pf) {
     fits_read_key(pf->fptr, TDOUBLE, "FD_SANG", &(hdr->fd_sang), NULL, status);
     fits_read_key(pf->fptr, TDOUBLE, "FD_XYPH", &(hdr->fd_xyph), NULL, status);
     fits_read_key(pf->fptr, TINT, "IBEAM", &(hdr->ibeam), NULL, status);
+	if (*status) {
+	  printf("No IBEAM keyword found. Skipping.\n");
+	  *status = 0;
+	}
     fits_read_key(pf->fptr, TINT, "FD_HAND", &(hdr->fd_hand), NULL, status);
     fits_read_key(pf->fptr, TINT, "BE_PHASE", &(hdr->be_phase), NULL, status);
 
@@ -331,18 +335,18 @@ int psrfits_read_subint(struct psrfits *pf) {
             NULL, status);
     fits_get_colnum(pf->fptr, 0, "DATA", &colnum, status);
     if (mode==SEARCH_MODE) {
-        if (hdr->nbits==32)
-	  fits_read_col(pf->fptr, TFLOAT, colnum, row, 1, sub->bytes_per_subint/sizeof(float),
-                      NULL, sub->data, NULL, status);
-	else {
-	  fits_read_col(pf->fptr, TBYTE, colnum, row, 1, sub->bytes_per_subint,
-			NULL, sub->data, NULL, status);
-	  if (hdr->nbits==4) pf_4bit_to_8bit(pf);
-	}
-
+	  if (hdr->nbits==32)
+		fits_read_col(pf->fptr, TFLOAT, colnum, row, 1, sub->bytes_per_subint/sizeof(float),
+					  NULL, sub->rawdata, NULL, status);
+	  else {
+		fits_read_col(pf->fptr, TBYTE, colnum, row, 1, sub->bytes_per_subint,
+					  NULL, sub->rawdata, NULL, status);
+		if (hdr->nbits==4) pf_4bit_to_8bit(pf);
+	  }
+	  
     } else if (mode==FOLD_MODE) {
-        fits_read_col(pf->fptr, TFLOAT, colnum, row, 1, sub->bytes_per_subint,
-                      NULL, sub->data, NULL, status);
+	  fits_read_col(pf->fptr, TFLOAT, colnum, row, 1, sub->bytes_per_subint,
+					NULL, sub->data, NULL, status);
     }
 
     // Complain on error

@@ -17,6 +17,26 @@ void strreplace(char *str) {
 	}
 }
 
+void copy_subint_params(struct psrfits *pfo, struct psrfits *pfi) { 
+  
+    struct subint *sub_in, *sub_out;
+    sub_in = &(pfi->sub);
+    sub_out = &(pfo->sub);
+  
+    sub_out->tsubint = sub_in->tsubint;
+    sub_out->offs = sub_in->offs;
+    sub_out->lst = sub_in->lst;
+    sub_out->ra = sub_in->ra;
+    sub_out->dec = sub_in->dec;
+    sub_out->glon = sub_in->glon;
+    sub_out->glat = sub_in->glat;
+    sub_out->feed_ang = sub_in->feed_ang;
+    sub_out->pos_ang = sub_in->pos_ang;
+    sub_out->par_ang = sub_in->par_ang;
+    sub_out->tel_az = sub_in->tel_az;
+    sub_out->tel_zen = sub_in->tel_zen;
+}
+
 // Define different obs modes
 static const int search=SEARCH_MODE, fold=FOLD_MODE;
 int psrfits_obs_mode(const char *obs_mode) {
@@ -365,8 +385,8 @@ int psrfits_write_subint(struct psrfits *pf) {
     fits_write_col(pf->fptr, TFLOAT, 16, row, 1, nivals, sub->dat_scales, status);
     if (mode==search) {
       if (hdr->nbits==32) {
-	fits_write_col(pf->fptr, TFLOAT, 17, row, 1, out_nbytes/sizeof(float),                                  
-		       sub->rawdata, status);
+		fits_write_col(pf->fptr, TFLOAT, 17, row, 1, out_nbytes/sizeof(float),
+					   sub->rawdata, status);
       }
       else {
         if (hdr->nbits==4) pf_8bit_to_4bit(pf);
