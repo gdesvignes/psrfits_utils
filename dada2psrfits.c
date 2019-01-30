@@ -132,7 +132,7 @@ int main(int argc, char *argv[]) {
     strcpy(pf.hdr.obs_mode, "SEARCH");
     strcpy(pf.hdr.backend, "roach2");
     strcpy(pf.hdr.source, source);
-    strcpy(pf.hdr.frontend, "C+_rcvr");
+    strcpy(pf.hdr.frontend, "S45-1");
     strcpy(pf.hdr.project_id, "P84-16");
 
 	char date_obs[64];
@@ -156,14 +156,27 @@ int main(int argc, char *argv[]) {
 	double bw;
 	if (ascii_header_get (header, "BW", "%lf", &bw))
 	  pf.hdr.BW = bw;
+	if (have_invert) pf.hdr.BW *= -1;
 
 	int nchan;
 	if (ascii_header_get (header, "NCHAN", "%d", &nchan))
 	  pf.hdr.nchan = nchan;
 
 	int nbits;
-	if (ascii_header_get (header, "NBITS", "%d", &nchan))
+	if (ascii_header_get (header, "NBIT", "%d", &nbits))
 	  pf.hdr.nbits = nbits;
+
+	//char source[24];
+	if (ascii_header_get (header, "SOURCE", "%s", &source))
+	  strncpy(pf.hdr.source, source, 24);
+
+	//char ra_str[16];
+	if (ascii_header_get (header, "RA", "%s", &ra_str))
+	  strncpy(pf.hdr.ra_str, ra_str, 16);
+
+	//char dec_str[16];
+	if (ascii_header_get (header, "DEC", "%s", &dec_str))
+	  strncpy(pf.hdr.dec_str, dec_str, 16);
 
 	char MJD_start[64], *end;
 	if (ascii_header_get (header, "MJD_START", "%s", MJD_start))
@@ -171,6 +184,22 @@ int main(int argc, char *argv[]) {
 
 	uint64_t file_size;
 	ascii_header_get (header, "FILE_SIZE", "%"PRIu64"", &file_size);
+
+	uint64_t bytes_per_second;
+	ascii_header_get (header, "BYTES_PER_SECOND", "%"PRIu64"", &bytes_per_second);
+	
+	uint64_t offset;
+	ascii_header_get (header, "OBS_OFFSET", "%"PRIu64"", &offset);
+	if (offset) {
+	  long double time_offset = 0.;
+	  time_offset = offset / bytes_per_second;
+	  printf("Initial file has OBS_OFFSET!=0. Adding %lf second to MJD_epoch\n", time_offset);
+	}
+
+	if (pf.hdr.MJD_epoch < 58472 && pf.hdr.fctr == 7000.) {
+	  printf("Correcting for the wrong BW sign in early PSRIX2 data\n");
+	  pf.hdr.BW *= -1;
+	}
 	
     pf.hdr.azimuth = 123.123;
     pf.hdr.zenith_ang = 23.0;
