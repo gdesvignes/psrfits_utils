@@ -67,11 +67,13 @@ int main(int argc, char *argv[]) {
     long long nspec;    
 	double input_freq;
 	bool have_freq=false, have_invert=false, do_break=false, is_pico=false;
+	bool have_ra=false, have_dec=false, have_source=false;
 	char ra_str[16], dec_str[16], source[24];
 	while ((opt=getopt_long(argc,argv,"d:f:ir:p:vh", long_opts,&opti))!=-1) {
 	  switch (opt) {
 	  case 'd':
 		strncpy(dec_str, optarg, 16);
+		have_dec=true;
 		break;
 	  case 'f':
 		input_freq = atoi(optarg);
@@ -82,9 +84,11 @@ int main(int argc, char *argv[]) {
 		break;
 	  case 'r':
 		strncpy(ra_str, optarg, 16);
+		have_ra=true;
 		break;
 	  case 'p':
 		strncpy(source, optarg, 24);
+		have_source=true;
 		break;
 	  case 'v':
 		is_pico=true;
@@ -167,15 +171,21 @@ int main(int argc, char *argv[]) {
 	  pf.hdr.nbits = nbits;
 
 	//char source[24];
-	if (ascii_header_get (header, "SOURCE", "%s", &source))
+	if (have_source)
+	  strcpy(pf.hdr.source, source);
+	else if (ascii_header_get (header, "SOURCE", "%s", &source))
 	  strncpy(pf.hdr.source, source, 24);
 
 	//char ra_str[16];
-	if (ascii_header_get (header, "RA", "%s", &ra_str))
+	if (have_ra)
+	  strcpy(pf.hdr.ra_str, ra_str);
+	else if (ascii_header_get (header, "RA", "%s", &ra_str))
 	  strncpy(pf.hdr.ra_str, ra_str, 16);
-
+	
 	//char dec_str[16];
-	if (ascii_header_get (header, "DEC", "%s", &dec_str))
+	if (have_dec)
+	  strcpy(pf.hdr.dec_str, dec_str);
+	else if (ascii_header_get (header, "DEC", "%s", &dec_str))
 	  strncpy(pf.hdr.dec_str, dec_str, 16);
 
 	char MJD_start[64], *end;
@@ -196,8 +206,9 @@ int main(int argc, char *argv[]) {
 	  printf("Initial file has OBS_OFFSET!=0. Adding %lf second to MJD_epoch\n", time_offset);
 	}
 
+	// TODO: should match with telescope Effelsberg
 	if (pf.hdr.MJD_epoch < 58472 && pf.hdr.fctr == 7000.) {
-	  printf("Correcting for the wrong BW sign in early PSRIX2 data\n");
+	  printf("Correcting for the wrong BW sign in early EffelsbergPSRIX2 data\n");
 	  pf.hdr.BW *= -1;
 	}
 	
@@ -250,7 +261,8 @@ int main(int argc, char *argv[]) {
     pf.sub.tel_zen = pf.hdr.zenith_ang;
     pf.sub.bytes_per_subint = (pf.hdr.nbits * pf.hdr.nchan * 
                                pf.hdr.npol * pf.hdr.nsblk) / 8;
-	if (pf.hdr.nbits==32) pf.sub.FITS_typecode = TFLOAT;
+	if (pf.hdr.nbits==32) {pf.sub.FITS_typecode = TFLOAT;
+	  printf("Input is 32b. Output FITS type defaulting to FLOAT\n");}
     else pf.sub.FITS_typecode = TBYTE;  // 11 = byte
 
     // Create and initialize the subint arrays
@@ -279,8 +291,8 @@ int main(int argc, char *argv[]) {
     do {
       // Update the pf.sub entries here for each subint
       // as well as the pf.sub.data pointer
-      nspec = fread(pf.sub.rawdata, pf.hdr.nbits * pf.hdr.nchan * pf.hdr.npol/8, pf.hdr.nsblk, pfi);
-
+      nspec = fread(pf.sub.rawdata, pf.hdr.nbits/8 * pf.hdr.nchan * pf.hdr.npol, pf.hdr.nsblk, pfi);
+	  
       if (feof (pfi) ) {
 		// Close file
 		printf("Closing file %s\n", filename);
@@ -299,7 +311,7 @@ int main(int argc, char *argv[]) {
 
 	  // Need to read some more data from new file if there is 
 	  if (nspec < pf.hdr.nsblk) {
-	    fread(&pf.sub.rawdata[nspec*pf.hdr.nbits * pf.hdr.nchan * pf.hdr.npol/8],
+	    fread(&pf.sub.rawdata[nspec*pf.hdr.nbits/8 * pf.hdr.nchan * pf.hdr.npol],
 					  pf.hdr.nbits * pf.hdr.nchan * pf.hdr.npol/8, pf.hdr.nsblk-nspec, pfi);
 		//nspec+=nspec2;
 
@@ -308,6 +320,7 @@ int main(int argc, char *argv[]) {
 	  // Flip the band if needed
 	  // Only works for 8-bit values
 	  if (have_invert) {
+		if (pf.hdr.nbits!=8) {printf("!8bits band inversion not supported yet. Exit\n" );return(-1);}
 		for (jj=0; jj<pf.hdr.nsblk * pf.hdr.npol; jj++) {
 		  sptr = (uint8_t *) &pf.sub.rawdata[jj*pf.hdr.nchan];
 		  for (ii=0; ii<nchan/2; ii++) {
