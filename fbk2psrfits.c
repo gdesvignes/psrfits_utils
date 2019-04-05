@@ -217,6 +217,7 @@ int main(int argc, char *argv[]) {
 		strcpy(pf.hdr.frontend, "S36");
 		strcpy(pf.hdr.poln_type, "CIRC");
 		strcpy(pf.hdr.poln_order, "AABBCRCI");
+		pf.hdr.fd_hand = -1; // To conform PA and Stokes V to PSR/IEEE 
 	  }
 	  else if (strncmp(frontend,"S60",3)==0) {
 		strcpy(pf.hdr.backend, "PSRIX");
@@ -229,6 +230,7 @@ int main(int argc, char *argv[]) {
 		strcpy(pf.hdr.frontend, "S110");
 		strcpy(pf.hdr.poln_type, "CIRC");
 		strcpy(pf.hdr.poln_order, "AABBCRCI");
+		pf.hdr.be_phase = -1; // To conform Stokes V to PSR/IEEE
 	  }
 	  else if (strncmp(frontend,"S45",3)==0) {
 		strcpy(pf.hdr.backend, "PSRIX");
