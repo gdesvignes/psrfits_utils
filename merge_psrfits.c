@@ -182,7 +182,7 @@ int main(int argc, char *argv[]) {
     pf.sub.dat_offsets = (float *)malloc(sizeof(float) * pf.hdr.nchan * pf.hdr.npol);
     pf.sub.dat_scales  = (float *)malloc(sizeof(float) * pf.hdr.nchan * pf.hdr.npol);
     pf.sub.rawdata = (unsigned char *)malloc(pf.sub.bytes_per_subint);
-    pf.sub.data = (unsigned char *)malloc(pf.sub.bytes_per_subint);
+    //pf.sub.data = (unsigned char *)malloc(pf.sub.bytes_per_subint); Is it necessary ?
 
     // -- Given the frequency, set pointers to the correct position --
     for (i=0; i<numfiles; i++) {
@@ -191,7 +191,7 @@ int main(int argc, char *argv[]) {
 	  fargs[i].pf.sub.dat_offsets = (float *) &pf.sub.dat_offsets[fargs[i].chan_id * nchan * npol];
 	  fargs[i].pf.sub.dat_scales  = (float *) &pf.sub.dat_scales[fargs[i].chan_id * nchan * npol];
 	  fargs[i].pf.sub.rawdata = (unsigned char *) &tmpbuf[fargs[i].chan_id * bytes_per_subint];
-	  fargs[i].pf.sub.data = (unsigned char *) &tmpbuf[fargs[i].chan_id * bytes_per_subint];
+	  //fargs[i].pf.sub.data = (unsigned char *) &tmpbuf[fargs[i].chan_id * bytes_per_subint]; Is it necessary ?
     }
 	
     // -- Loop through the data --
