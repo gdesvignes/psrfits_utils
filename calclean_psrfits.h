@@ -1,15 +1,32 @@
+//#ifndef CALCLEAN_PSRFITS_H
+//#define CALCLEAN_PSRFITS_H
+#include <vector>
+#include <Jones.h>
 #include "psrfits.h"
-typedef struct {
-    //int status;
-    //int chan_id;
-    //char filename[128];
-    int clean;
-    unsigned int numdata;
-    float *data;
+#include "ekstrom.h"
 
+typedef struct {
+  int ithread;
+  int clean_baseline;
+  int redn_clean;
+  int median_clean;
+  unsigned long totnpts;
+  int nchan_per_thread;
+  int npol;
+  int nchan;
+  int nbits;
+  int nskip;
+  unsigned char *pfiraw;
+  unsigned char *pfraw;
+  RunningMean<float> *rm;
+  std::vector< Jones<float> > response;
 
 } thread_args;
 
-void *calclean_psrfits_thread(void *args);
 
-pthread_mutex_t lock_calclean;
+void *calclean_psrfits_32b_thread(void *args);
+
+void *calclean_psrfits_8b_thread(void *args);
+//pthread_mutex_t lock_calclean;
+
+//#endif
