@@ -22,6 +22,7 @@ void usage() {
   printf(
 		 "Usage: dada2psrfits [options] input_filename_base\n"
 		 "Options:\n"
+		 "  -c, --flipV              Flip polarisation 4, e.g. Stokes V\n"
 		 "  -h, --help               Print this\n"
 		 "  -f fff, --freq=ffff      Set the centre frequency (MHz)\n"
 		 "  -i, --invert             Invert band\n"
@@ -50,6 +51,7 @@ int main(int argc, char *argv[]) {
 
   /* Cmd line */
   static struct option long_opts[] = {
+	{"flipV",   0, NULL, 'c'},
 	{"freq",    1, NULL, 'f'},
 	{"invert",  0, NULL, 'i'},
 	{"help",    0, NULL, 'h'},
@@ -67,10 +69,13 @@ int main(int argc, char *argv[]) {
     long long nspec;    
 	double input_freq;
 	bool have_freq=false, have_invert=false, do_break=false, is_pico=false;
-	bool have_ra=false, have_dec=false, have_source=false;
+	bool have_ra=false, have_dec=false, have_source=false, have_flipV=false;
 	char ra_str[16], dec_str[16], source[24];
-	while ((opt=getopt_long(argc,argv,"d:f:ir:p:vh", long_opts,&opti))!=-1) {
+	while ((opt=getopt_long(argc,argv,"cd:f:ir:p:vh", long_opts,&opti))!=-1) {
 	  switch (opt) {
+	  case 'c':
+		have_flipV=true;
+		break;
 	  case 'd':
 		strncpy(dec_str, optarg, 16);
 		have_dec=true;
@@ -129,15 +134,18 @@ int main(int argc, char *argv[]) {
     // Now set values for our hdrinfo structure
     pf.hdr.scanlen = 86400; // in sec
     strcpy(pf.hdr.observer, "A. Eintein");
-	if (is_pico)
+	if (is_pico) {
 	  strcpy(pf.hdr.telescope, "Pico Veleta");
-	else 
+	  pf.hdr.be_phase = 1;
+	} else {
 	  strcpy(pf.hdr.telescope, "Effelsberg");
+	  pf.hdr.be_phase = -1;
+	}
     strcpy(pf.hdr.obs_mode, "SEARCH");
     strcpy(pf.hdr.backend, "roach2");
     strcpy(pf.hdr.source, source);
     strcpy(pf.hdr.frontend, "S45-1");
-    strcpy(pf.hdr.project_id, "P84-16");
+    strcpy(pf.hdr.project_id, "GC");
 
 	char date_obs[64];
 	if (ascii_header_get (header, "UTC_START", "%s", date_obs))
@@ -172,19 +180,19 @@ int main(int argc, char *argv[]) {
 
 	//char source[24];
 	if (have_source)
-	  strcpy(pf.hdr.source, source);
+	  strncpy(pf.hdr.source, source, 24);
 	else if (ascii_header_get (header, "SOURCE", "%s", &source))
 	  strncpy(pf.hdr.source, source, 24);
 
 	//char ra_str[16];
 	if (have_ra)
-	  strcpy(pf.hdr.ra_str, ra_str);
+	  strncpy(pf.hdr.ra_str, ra_str, 16);
 	else if (ascii_header_get (header, "RA", "%s", &ra_str))
 	  strncpy(pf.hdr.ra_str, ra_str, 16);
 	
 	//char dec_str[16];
 	if (have_dec)
-	  strcpy(pf.hdr.dec_str, dec_str);
+	  strncpy(pf.hdr.dec_str, dec_str, 16);
 	else if (ascii_header_get (header, "DEC", "%s", &dec_str))
 	  strncpy(pf.hdr.dec_str, dec_str, 16);
 
@@ -230,7 +238,6 @@ int main(int argc, char *argv[]) {
     pf.hdr.fd_hand = 1;
     pf.hdr.fd_sang = 0;
     pf.hdr.fd_xyph = 0;    
-    pf.hdr.be_phase = 1;
     pf.hdr.nsblk = 8192;
     pf.hdr.ds_time_fact = 1;
     pf.hdr.ds_freq_fact = 1;
@@ -281,7 +288,8 @@ int main(int argc, char *argv[]) {
     }
  
 
-	uint8_t swap, *sptr;
+	uint8_t swap, *uptr;
+	int8_t *sptr;
 	
     // This is what you would update for each time sample (likely just
     // adjusting the pointer to point to your data)
@@ -322,11 +330,21 @@ int main(int argc, char *argv[]) {
 	  if (have_invert) {
 		if (pf.hdr.nbits!=8) {printf("!8bits band inversion not supported yet. Exit\n" );return(-1);}
 		for (jj=0; jj<pf.hdr.nsblk * pf.hdr.npol; jj++) {
-		  sptr = (uint8_t *) &pf.sub.rawdata[jj*pf.hdr.nchan];
+		  uptr = (uint8_t *) &pf.sub.rawdata[jj*pf.hdr.nchan];
 		  for (ii=0; ii<nchan/2; ii++) {
-			swap = sptr[nchan-1-ii];
-			sptr[nchan-1-ii] = sptr[ii];
-			sptr[ii] = swap;
+			swap = uptr[nchan-1-ii];
+			uptr[nchan-1-ii] = uptr[ii];
+			uptr[ii] = swap;
+		  }
+		}
+	  }
+
+	  if (have_flipV) {
+		for (jj=0; jj<pf.hdr.nsblk; jj++) {
+		  sptr = (int8_t *) &pf.sub.rawdata[jj*pf.hdr.nchan*pf.hdr.npol + 3*pf.hdr.nchan];
+		  for (ii=0; ii<pf.hdr.nchan; ii++) {
+			*sptr *= -1;
+			sptr++;
 		  }
 		}
 	  }
