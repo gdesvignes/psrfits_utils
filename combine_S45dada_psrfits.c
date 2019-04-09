@@ -338,8 +338,14 @@ int main(int argc, char *argv[]) {
 	printf("%d channels to zap\n", nchan2zap);
 
 	// Apply the weights
-	for (ii=0; ii<nchan2zap; ii++) pf.sub.dat_weights[chan2zap[ii]] = 0.0;
+	for (ii=0; ii<nchan2zap; ii++) {
+            if (chan2zap[ii]<0 || chan2zap[ii] > pf.hdr.nchan) {
+                printf("Channel %d outside of channels range in PSRFITS file 0-%d. Skipping.\n", chan2zap[ii], pf.hdr.nchan);
+                continue;
+            }
+            pf.sub.dat_weights[chan2zap[ii]] = 0.0;
 	}
+  }      
 	
 
   uint8_t swap, *uptr;
