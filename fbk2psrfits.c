@@ -237,6 +237,7 @@ int main(int argc, char *argv[]) {
 		strcpy(pf.hdr.frontend, "S45");
 		strcpy(pf.hdr.poln_type, "LIN");
 		strcpy(pf.hdr.poln_order, "AABBCRCI");
+		pf.hdr.be_phase = -1; // To conform Stokes V to PSR/IEEE
 	  }
 	  else {printf("Frontend %s not recognised\n", frontend);}
 	}
