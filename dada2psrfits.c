@@ -30,6 +30,7 @@ void usage() {
 		 "  -r, --ra                 Set RA string in psrfits archive\n"
 		 "  -d, --dec                Set DEC string in psrfits archive\n"
 		 "  -v, --pv                 Set Pico Veleta as the observatory\n"
+		 "  -s, --Slin2circ          Transform from linear to circular feed Stokes output\n"
 		 );
 }
 
@@ -59,6 +60,7 @@ int main(int argc, char *argv[]) {
 	{"ra",      0, NULL, 'r'},
 	{"dec",     0, NULL, 'd'},
 	{"pv",      0, NULL, 'v'},
+	{"Slin2circ",0, NULL, 's'},
 	{0,0,0,0}
   };
 
@@ -70,8 +72,9 @@ int main(int argc, char *argv[]) {
 	double input_freq;
 	bool have_freq=false, have_invert=false, do_break=false, is_pico=false;
 	bool have_ra=false, have_dec=false, have_source=false, have_flipV=false;
+	bool have_lin2circ=false;
 	char ra_str[16], dec_str[16], source[24];
-	while ((opt=getopt_long(argc,argv,"cd:f:ir:p:vh", long_opts,&opti))!=-1) {
+	while ((opt=getopt_long(argc,argv,"cd:f:ir:p:svh", long_opts,&opti))!=-1) {
 	  switch (opt) {
 	  case 'c':
 		have_flipV=true;
@@ -98,6 +101,8 @@ int main(int argc, char *argv[]) {
 	  case 'v':
 		is_pico=true;
 		break;
+	  case 's':
+		have_lin2circ=true;
 	  case 'h':
 	  default:
 		usage();
@@ -150,7 +155,6 @@ int main(int argc, char *argv[]) {
 	char date_obs[64];
 	if (ascii_header_get (header, "UTC_START", "%s", date_obs))
 	  strcpy(pf.hdr.date_obs, date_obs);
-    strcpy(pf.hdr.poln_type, "LIN");
     strcpy(pf.hdr.poln_order, "IQUV");
     strcpy(pf.hdr.track_mode, "TRACK");
     strcpy(pf.hdr.cal_mode, "OFF");
@@ -177,6 +181,12 @@ int main(int argc, char *argv[]) {
 	int nbits;
 	if (ascii_header_get (header, "NBIT", "%d", &nbits))
 	  pf.hdr.nbits = nbits;
+
+	char basis[16];
+	if (ascii_header_get (header, "BASIS", "%s", basis)) {
+	  if (strncmp("Circular", basis, 8)==0) { strcpy(pf.hdr.poln_type, "CIRC");}
+	  else { strcpy(pf.hdr.poln_type, "LIN");}
+	} else strcpy(pf.hdr.poln_type, "LIN");
 
 	//char source[24];
 	if (have_source)
@@ -290,10 +300,12 @@ int main(int argc, char *argv[]) {
 
 	uint8_t swap, *uptr;
 	int8_t *sptr;
-	
+	char *buf_L2C;
+	int ipol, opol;
     // This is what you would update for each time sample (likely just
     // adjusting the pointer to point to your data)
     pf.sub.rawdata = (unsigned char *)malloc(pf.sub.bytes_per_subint);
+	buf_L2C = (unsigned char *)malloc(pf.hdr.nchan*pf.hdr.nbits/8);
 	
     // Here is the real data-writing loop
     do {
@@ -324,6 +336,28 @@ int main(int argc, char *argv[]) {
 		//nspec+=nspec2;
 
 	  }
+
+	  if (have_lin2circ && (strncmp(pf.hdr.poln_type, "CIRC",4)==0)) {
+		for (jj=0; jj<pf.hdr.nsblk;jj++) {
+		  // First copy Stokes Q to tmp
+		  ipol = 1;
+		  memcpy(buf_L2C, &pf.sub.rawdata[jj*pf.hdr.npol * pf.hdr.nchan * ipol * pf.hdr.nchan], pf.hdr.nchan * pf.hdr.nbits/8);
+		  // Copy Stokes U to Q
+		  opol = 1;
+		  ipol = 2;
+		  memcpy(&pf.sub.rawdata[jj*pf.hdr.npol * pf.hdr.nchan + opol * pf.hdr.nchan],
+				 &pf.sub.rawdata[jj*pf.hdr.npol * pf.hdr.nchan + ipol * pf.hdr.nchan], pf.hdr.nchan * pf.hdr.nbits/8);
+		  // Copy Stokes V to U
+		  opol = 2;
+		  ipol = 3;
+		  memcpy(&pf.sub.rawdata[jj*pf.hdr.npol * pf.hdr.nchan + opol * pf.hdr.nchan],
+				 &pf.sub.rawdata[jj*pf.hdr.npol * pf.hdr.nchan + ipol * pf.hdr.nchan], pf.hdr.nchan * pf.hdr.nbits/8);
+		  // Copy tmp to Stokes V
+		  opol = 3;
+		  memcpy(&pf.sub.rawdata[jj*pf.hdr.npol * pf.hdr.nchan + opol * pf.hdr.nchan], buf_L2C, pf.hdr.nchan * pf.hdr.nbits/8);
+		}
+	  }
+	  
 	  
 	  // Flip the band if needed
 	  // Only works for 8-bit values
@@ -340,6 +374,7 @@ int main(int argc, char *argv[]) {
 	  }
 
 	  if (have_flipV) {
+		if (pf.hdr.nbits!=8) {printf("!8bits flip Stokes V not supported yet. Exit\n" );return(-1);}
 		for (jj=0; jj<pf.hdr.nsblk; jj++) {
 		  sptr = (int8_t *) &pf.sub.rawdata[jj*pf.hdr.nchan*pf.hdr.npol + 3*pf.hdr.nchan];
 		  for (ii=0; ii<pf.hdr.nchan; ii++) {
@@ -363,7 +398,7 @@ int main(int argc, char *argv[]) {
     free(pf.sub.dat_offsets);
     free(pf.sub.dat_scales);
     free(pf.sub.data);
-
+	free(buf_L2C);
     printf("Done.  Wrote %d subints (%f sec) in %d files.  status = %d\n", 
            pf.tot_rows, pf.T, pf.filenum, pf.status);
 
