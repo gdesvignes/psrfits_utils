@@ -34,6 +34,8 @@ void usage() {
             "  -P file, --parfile=file  Use given .par file\n"
             "  -F nn, --foldfreq=nn     Fold at constant freq (Hz)\n"
             "  -C, --cal                Cal folding mode\n"
+			"  -k, --fon                FluxCal ON mode\n"
+			"  -l, --foff               Fluxcal OFF mode\n"
             "  -u, --unsigned           Raw data is unsigned\n"
             "  -U n, --nunsigned        Num of unsigned polns\n"
             "  -S size, --split=size    Approximate max size per output file, GB (1)\n"
@@ -57,6 +59,8 @@ int main(int argc, char *argv[]) {
         {"parfile", 1, NULL, 'P'},
         {"foldfreq",1, NULL, 'F'},
         {"cal",     0, NULL, 'C'},
+		{"fon",     0, NULL, 'k'},
+		{"foff",    0, NULL, 'l'},
         {"unsigned",0, NULL, 'u'},
         {"nunsigned",1, NULL, 'U'},
         {"split",   1, NULL, 'S'},
@@ -67,7 +71,7 @@ int main(int argc, char *argv[]) {
     };
     int opt, opti;
     int nbin=256, nthread=4, fnum_start=1, fnum_end=0;
-    int quiet=0, raw_signed=1, use_polycos=1, cal=0, apply_scale=0;
+    int quiet=0, raw_signed=1, use_polycos=1, cal=0, fon=0, foff=0, apply_scale=0;
     double split_size_gb = 1.0;
     double tfold = 60.0; 
     double fold_frequency=0.0;
@@ -75,7 +79,7 @@ int main(int argc, char *argv[]) {
     char polyco_file[256] = "";
     char par_file[256] = "";
     char source[24];  source[0]='\0';
-    while ((opt=getopt_long(argc,argv,"o:b:t:j:i:f:s:p:P:F:CuU:S:Aqh",long_opts,&opti))!=-1) {
+    while ((opt=getopt_long(argc,argv,"o:b:t:j:i:f:s:p:P:F:CkluU:S:Aqh",long_opts,&opti))!=-1) {
         switch (opt) {
             case 'o':
                 strncpy(output_base, optarg, 255);
@@ -117,6 +121,12 @@ int main(int argc, char *argv[]) {
                 cal = 1;
                 use_polycos = 0;
                 break;
+		case 'k':
+		  fon = 1;
+		  break;
+		case 'l':
+		  foff = 1;
+		  break;
             case 'u':
                 raw_signed=0;
                 break;
@@ -189,6 +199,8 @@ int main(int argc, char *argv[]) {
     if (cal) {
         sprintf(pf_out.hdr.obs_mode, "CAL");
         sprintf(pf_out.hdr.cal_mode, "SYNC");
+		if (fon) sprintf(pf_out.hdr.obs_mode, "FON");
+		if (foff) sprintf(pf_out.hdr.obs_mode, "FOF");
     } else
         sprintf(pf_out.hdr.obs_mode, "PSR");
     strncpy(pf_out.fold.parfile,par_file,255); pf_out.fold.parfile[255]='\0';

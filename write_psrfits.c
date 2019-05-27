@@ -44,6 +44,8 @@ int psrfits_obs_mode(const char *obs_mode) {
     else if (strncmp("FOLD", obs_mode, 4)==0) { return(fold); }
     else if (strncmp("PSR", obs_mode, 3)==0) { return(fold); }
     else if (strncmp("CAL", obs_mode, 3)==0) { return(fold); }
+	else if (strncmp("FON", obs_mode, 3)==0) { return(fold); }
+	else if (strncmp("FOF", obs_mode, 3)==0) { return(fold); }
     else {
         // TODO: what to do here? default to search for now
         printf("Warning: obs_mode '%s' not recognized, defaulting to SEARCH.\n",
@@ -177,7 +179,7 @@ int psrfits_create(struct psrfits *pf) {
     fits_update_key(pf->fptr, TDOUBLE, "FD_XYPH", &(hdr->fd_xyph), NULL, status);
     fits_update_key(pf->fptr, TINT, "BE_PHASE", &(hdr->be_phase), NULL, status);
     fits_update_key(pf->fptr, TSTRING, "DATE-OBS", hdr->date_obs, NULL, status);
-    if (mode==fold && !strcmp("CAL",hdr->obs_mode)) 
+    if (mode==fold && (!strcmp("CAL",hdr->obs_mode) || !strcmp("FON",hdr->obs_mode) || !strcmp("FOF",hdr->obs_mode)))
         fits_update_key(pf->fptr, TSTRING, "OBS_MODE", hdr->obs_mode, 
                 NULL, status);
     fits_update_key(pf->fptr, TDOUBLE, "OBSFREQ", &(hdr->fctr), NULL, status);
@@ -217,7 +219,7 @@ int psrfits_create(struct psrfits *pf) {
 
     // If fold mode, copy the parfile into the PSRFITS EPHEM table
     if (mode==fold) {
-        if (strcmp("CAL",hdr->obs_mode)==0) {
+	  if (strcmp("CAL",hdr->obs_mode)==0 || strcmp("FON",hdr->obs_mode)==0 || strcmp("FOF",hdr->obs_mode)==0) {
             // CAL mode has no par file, or no par file given
             psrfits_remove_ephem(pf);
         } else if (fld->parfile[0]=='\0') {
