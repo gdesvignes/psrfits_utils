@@ -1,4 +1,4 @@
-// Only works so far for 8-b DADA in Stokes Search mode
+// Only works so far for 8-b and 32-b DADA in Stokes Search mode
 // G. Desvignes, April 2019
 
 #include <stdio.h>
@@ -43,13 +43,13 @@ void reorder_data(unsigned char* outbuf, unsigned char *inbuf, int nband, int ns
 
 void usage() {
   printf(
-		 "Usage: dada2psrfits [options] input_filename_base\n"
+		 "Usage: dada2psrfits [options] dadafile1 dadafile2\n"
 		 "Options:\n"
 		 "  -h, --help               Print this\n"
 		 "  -f fff, --freq=ffff      Set the centre frequency (MHz)\n"
 		 "  -p, --psrname            Set PSRNAME string in psrfits archive\n"
-		 "  -r, --ra                 Set RA string in psrfits archive\n"
-		 "  -d, --dec                Set DEC string in psrfits archive\n"
+		 "  -r, --ra                 Set RA string in psrfits archive (e.g. 18:09:51.090) \n"
+		 "  -d, --dec                Set DEC string in psrfits archive (e.g. -19:43:51.90)\n"
 		 "  -v, --pv                 Set Pico Veleta as the observatory\n"
 		 "  -z, --zap                Use zap list for Effelsberg S45 data\n"
 		 );
@@ -141,7 +141,17 @@ int main(int argc, char *argv[]) {
 
   pfi = fopen(filename, "r");
   pfi2 = fopen(filename2, "r");
-    
+
+
+  if (pfi==NULL) {
+	printf("Can not open %s\n", filename);
+	return -1;
+  }
+  if (pfi2==NULL) {
+	printf("Can not open %s\n", filename2);
+	return -1;
+  }
+  
   char header[DADA_HEADER_SIZE], header2[DADA_HEADER_SIZE];  
   if (fread (header, 1, DADA_HEADER_SIZE, pfi) != DADA_HEADER_SIZE) {
       fprintf (stderr, "Error getting header from %s\n", filename);
@@ -178,6 +188,7 @@ int main(int argc, char *argv[]) {
       strcpy(pf.hdr.date_obs, date_obs);  
   } else {
       printf("Error: UTC_START Band 1: %s != Band 2: %s\n", date_obs, date_obs2);
+	  exit(-1);
   } 
 
   strcpy(pf.hdr.poln_type, "LIN");
@@ -197,10 +208,10 @@ int main(int argc, char *argv[]) {
 	  exit(-1);
 	}
       pf.hdr.fctr = (freq + freq2) / 2.;
-      printf("New central frequency: %lf\n", pf.hdr.fctr);
   }
   if (have_freq) pf.hdr.fctr = input_freq;
-	
+  printf("New central frequency: %lf\n", pf.hdr.fctr);
+  
   double bw, bw2;
   if (ascii_header_get (header, "BW", "%lf", &bw) && ascii_header_get (header2, "BW", "%lf", &bw2))
       pf.hdr.BW = 2*bw; // Assumes sign of BW from band 1
@@ -351,8 +362,10 @@ int main(int argc, char *argv[]) {
   uint8_t swap, *uptr;
   int8_t *sptr;
   char *tmpdata, *tmpdata2;
+  float *tmpdata2_f, *fptr;
   tmpdata = (unsigned char *)malloc(pf.sub.bytes_per_subint);
   tmpdata2 = &tmpdata[pf.sub.bytes_per_subint/2]; 
+  tmpdata2_f = (float *) &tmpdata[pf.sub.bytes_per_subint/2];
   pf.sub.rawdata = (unsigned char *)malloc(pf.sub.bytes_per_subint);
 
   // Here is the real data-writing loop
@@ -414,25 +427,50 @@ int main(int argc, char *argv[]) {
 	  
       // Flip the second band
       // Only works for 8-bit values
-      for (jj=0; jj<pf.hdr.nsblk; jj++) {
-		for (ii=0; ii< 3; ii++) {
-	      uptr = (uint8_t *) &tmpdata2[(jj*pf.hdr.npol + ii) * nchan];
-	      for (int kk=0; kk<nchan/2; kk++) {
-			swap = uptr[nchan-1-kk];
-			uptr[nchan-1-kk] = uptr[kk];
-			uptr[kk] = swap;
-	      }
-		}
-		// Flip the sign of 4th polarisation, Stokes V, while flipping the band
-		for (ii=3; ii<4; ii++) {
-	      sptr = (int8_t *) &tmpdata2[(jj*pf.hdr.npol + ii) * nchan];
-		  for (int kk=0; kk<nchan/2; kk++) {
-			swap = -1*sptr[nchan-1-kk];
-			sptr[nchan-1-kk] = -1*sptr[kk];
-			sptr[kk] = swap;
+      if (pf.hdr.nbits==8) {
+		for (jj=0; jj<pf.hdr.nsblk; jj++) {
+		  for (ii=0; ii< 3; ii++) {
+			uptr = (uint8_t *) &tmpdata2[(jj*pf.hdr.npol + ii) * nchan];
+			for (int kk=0; kk<nchan/2; kk++) {
+			  swap = uptr[nchan-1-kk];
+			  uptr[nchan-1-kk] = uptr[kk];
+			  uptr[kk] = swap;
+			}
+		  }
+		  // Flip the sign of 4th polarisation, Stokes V, while flipping the band
+		  for (ii=3; ii<4; ii++) {
+			sptr = (int8_t *) &tmpdata2[(jj*pf.hdr.npol + ii) * nchan];
+			for (int kk=0; kk<nchan/2; kk++) {
+			  swap = -1*sptr[nchan-1-kk];
+			  sptr[nchan-1-kk] = -1*sptr[kk];
+			  sptr[kk] = swap;
+			}
 		  }
 		}
-      }
+	  }
+
+	  // Flip the second band
+	  // Only works for 32-bit values
+	  if (pf.hdr.nbits==32) {
+		for (jj=0; jj<pf.hdr.nsblk; jj++) {
+		  for (ii=0; ii< 3; ii++) {
+			fptr = (float *) &tmpdata2_f[(jj*pf.hdr.npol + ii) * nchan];
+			for (int kk=0; kk<nchan/2; kk++) {
+			  swap = fptr[nchan-1-kk];
+			  fptr[nchan-1-kk] = fptr[kk];
+			  fptr[kk] = swap;
+			}
+		  }
+		  for (ii=3; ii<4; ii++) {
+			fptr = (float *) &tmpdata2_f[(jj*pf.hdr.npol + ii) * nchan];
+			for (int kk=0; kk<nchan/2; kk++) {
+			  swap = -1*fptr[nchan-1-kk];
+			  fptr[nchan-1-kk] = -1*fptr[kk];
+			  fptr[kk] = swap;
+			}
+		  }
+		}
+	  }
 
       // Reorder the data / Transpose from the two separated bands to one band
       reorder_data(pf.sub.rawdata, tmpdata, 2, pf.hdr.nsblk, pf.hdr.npol, nchan, pf.hdr.nbits);
@@ -451,7 +489,7 @@ int main(int argc, char *argv[]) {
   free(pf.sub.dat_offsets);
   free(pf.sub.dat_scales);
   free(pf.sub.rawdata);
-  
+  free(tmpdata);
   printf("Done.  Wrote %d subints (%f sec) in %d files.  status = %d\n", 
 	 pf.tot_rows, pf.T, pf.filenum, pf.status);
   
