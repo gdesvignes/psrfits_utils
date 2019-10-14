@@ -32,12 +32,13 @@ void usage() {
             "  -s src, --src=src        Override source name from file\n"
             "  -p file, --polyco=file   Polyco file to use (polyco.dat)\n"
             "  -P file, --parfile=file  Use given .par file\n"
+	    "  -r nn, --reqpulse=nn     Process nn pulses (all) \n"
             "  -F nn, --foldfreq=nn     Fold at constant freq (Hz)\n"
             "  -C, --cal                Cal folding mode\n"
             "  -u, --unsigned           Raw data is unsigned\n"
             "  -U n, --nunsigned        Num of unsigned polns\n"
             "  -q, --quiet              No progress indicator\n"
-          );
+	   );
 }
 
 int main(int argc, char *argv[]) {
@@ -55,6 +56,7 @@ int main(int argc, char *argv[]) {
         {"src",     1, NULL, 's'},
         {"polyco",  1, NULL, 'p'},
         {"parfile", 1, NULL, 'P'},
+	{"reqpulse", 1, NULL, 'r'},
         {"foldfreq",1, NULL, 'F'},
         {"cal",     0, NULL, 'C'},
         {"unsigned",0, NULL, 'u'},
@@ -66,14 +68,14 @@ int main(int argc, char *argv[]) {
     int opt, opti;
     int nbin=256, nthread=4, fnum_start=1, fnum_end=0;
     int quiet=0, raw_signed=1, use_polycos=1, cal=0;
-    int npulse_per_file = 64;
+    int npulse_per_file = 64, req_pulse=0;
     double start_time=0.0, process_time=0.0;
     double fold_frequency=0.0;
     char output_base[256] = "";
     char polyco_file[256] = "";
     char par_file[256] = "";
     char source[24];  source[0]='\0';
-    while ((opt=getopt_long(argc,argv,"o:n:b:j:i:f:T:L:s:p:P:F:CuU:qh",long_opts,&opti))!=-1) {
+    while ((opt=getopt_long(argc,argv,"o:n:b:j:i:f:T:L:s:p:P:r:F:CuU:qh",long_opts,&opti))!=-1) {
         switch (opt) {
             case 'o':
                 strncpy(output_base, optarg, 255);
@@ -100,7 +102,10 @@ int main(int argc, char *argv[]) {
             case 'L':
                 process_time = atof(optarg);
                 break;
-            case 's':
+	case 'r':
+	  req_pulse = atoi(optarg);
+	  break;
+       	    case 's':
                 strncpy(source, optarg, 24);
                 source[23]='\0';
                 break;
@@ -325,7 +330,7 @@ int main(int argc, char *argv[]) {
     while (run) { 
 
         /* Read data block */
-        pf.sub.data = (unsigned char *)fargs.data;
+        pf.sub.rawdata = (unsigned char *)fargs.data;
         rv = psrfits_read_subint(&pf);
         if (rv) { 
             if (rv==FILE_NOT_OPENED) rv=0; // Don't complain on file not found
@@ -456,6 +461,11 @@ int main(int argc, char *argv[]) {
                 sampcount=0;
                 last_pulse = cur_pulse;
                 last_filenum = pf_out.filenum;
+
+		if (req_pulse && cur_pulse - last_pulse > req_pulse) {
+		  run = 0;
+		  break;
+		}
 
             }
         }
