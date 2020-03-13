@@ -103,6 +103,7 @@ int main(int argc, char *argv[]) {
 		break;
 	  case 's':
 		have_lin2circ=true;
+		break;
 	  case 'h':
 	  default:
 		usage();
@@ -341,7 +342,7 @@ int main(int argc, char *argv[]) {
 		for (jj=0; jj<pf.hdr.nsblk;jj++) {
 		  // First copy Stokes Q to tmp
 		  ipol = 1;
-		  memcpy(buf_L2C, &pf.sub.rawdata[jj*pf.hdr.npol * pf.hdr.nchan * ipol * pf.hdr.nchan], pf.hdr.nchan * pf.hdr.nbits/8);
+		  memcpy(buf_L2C, &pf.sub.rawdata[jj*pf.hdr.npol * pf.hdr.nchan + ipol * pf.hdr.nchan], pf.hdr.nchan * pf.hdr.nbits/8);
 		  // Copy Stokes U to Q
 		  opol = 1;
 		  ipol = 2;
