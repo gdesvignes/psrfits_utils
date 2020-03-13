@@ -21,7 +21,7 @@
 
 #define DADA_HEADER_SIZE (4096)
 
-#define ZAPLIST "/beegfsBN/miraculix2/part0/src/psrfits_utils-calclean/S45_channels.zaplist"
+#define ZAPLIST "/fpra/galc/01/gdesvignes/src/psrfits_utils/S45_channels.zaplist"
 
 void reorder_data(unsigned char* outbuf, unsigned char *inbuf, int nband, int nspec, int npol, int nchan, int nbits) {
   int band, spec, pol, inoff = 0, outoff = 0;
@@ -130,36 +130,48 @@ int main(int argc, char *argv[]) {
   }
   
   FILE *pfi, *pfi2;
-  char filename[256], sfn[256], filename2[256], sfn2[256];
-  strcpy(filename, argv[optind]);
-  strcpy(filename2, argv[optind+1]);
+  char *adr, filename[256], sfn[256], filename2[256], sfn2[256], path[256], path2[256];
+  char ffn[256], ffn2[256];
+  strcpy(ffn, argv[optind]);
+  if((adr=(char *)strrchr(ffn,'/')) != NULL) strcpy(filename,adr+1);
+  strcpy(ffn2, argv[optind+1]);
+  if((adr=(char *)strrchr(ffn2,'/')) != NULL) strcpy(filename2,adr+1);
+  
+  strcpy(path, ffn);
+  strcpy(path2, ffn2);
+  if((adr=(char *)strrchr(path,'/')) != NULL) sprintf(adr,"\0");
+  if((adr=(char *)strrchr(path2,'/')) != NULL) sprintf(adr,"\0");
+  
+
   uint64_t fs, fs2;
   sscanf(filename,"%[^_]_%"PRIu64".000000.dada", sfn, &fs);
-  printf("Opening %s\n", filename);
+  printf("Opening %s\n", ffn);
   sscanf(filename2,"%[^_]_%"PRIu64".000000.dada", sfn2, &fs2);
-  printf("Opening %s\n", filename2);
+  printf("Opening %s\n", ffn2);
+ 
+  if (fs!=fs2) {printf("Error with input files:\n%s != %s\n", ffn, ffn2); return(-1);}
 
-  pfi = fopen(filename, "r");
-  pfi2 = fopen(filename2, "r");
+  pfi = fopen(ffn, "r");
+  pfi2 = fopen(ffn2, "r");
 
 
   if (pfi==NULL) {
-	printf("Can not open %s\n", filename);
+	printf("Can not open %s\n", ffn);
 	return -1;
   }
   if (pfi2==NULL) {
-	printf("Can not open %s\n", filename2);
+	printf("Can not open %s\n", ffn2);
 	return -1;
   }
   
   char header[DADA_HEADER_SIZE], header2[DADA_HEADER_SIZE];  
   if (fread (header, 1, DADA_HEADER_SIZE, pfi) != DADA_HEADER_SIZE) {
-      fprintf (stderr, "Error getting header from %s\n", filename);
+      fprintf (stderr, "Error getting header from %s\n", ffn);
       exit(-1);
   }
 
   if (fread (header2, 1, DADA_HEADER_SIZE, pfi2) != DADA_HEADER_SIZE) {
-      fprintf (stderr, "Error getting header from %s\n", filename2);
+      fprintf (stderr, "Error getting header from %s\n", ffn2);
       exit(-1);
   }
 	
@@ -205,7 +217,7 @@ int main(int argc, char *argv[]) {
   if (ascii_header_get (header, "FREQ", "%lf", &freq) && ascii_header_get (header2, "FREQ", "%lf", &freq2)) {
 	if (freq>freq2) {
 	  printf("Error: Freq file 1: %lf  > Freq file 2: %lf\nSwap filenames in command line!\n", freq, freq2);
-	  exit(-1);
+	  //exit(-1);
 	}
       pf.hdr.fctr = (freq + freq2) / 2.;
   }
@@ -252,6 +264,8 @@ int main(int argc, char *argv[]) {
   
   uint64_t file_size;
   ascii_header_get (header, "FILE_SIZE", "%"PRIu64"", &file_size);
+  file_size = fs; // GD: File_size can no longer be trusted. Recompute file_size manually while reading the data
+  // If we provide the first file, fs should be zero.
   
   uint64_t bytes_per_second;
   ascii_header_get (header, "BYTES_PER_SECOND", "%"PRIu64"", &bytes_per_second);
@@ -260,8 +274,9 @@ int main(int argc, char *argv[]) {
   ascii_header_get (header, "OBS_OFFSET", "%"PRIu64"", &offset);
   if (offset) {
       long double time_offset = 0.;
-      time_offset = offset / bytes_per_second;
-      printf("Initial file has OBS_OFFSET!=0. Adding %lf second to MJD_epoch\n", time_offset);
+      time_offset = (long double) offset / (long double) bytes_per_second;
+      printf("Initial file has OBS_OFFSET=%llf, bytes_per_second=%llf. Adding %llf second to MJD_epoch\n", (long double) offset, (long double) bytes_per_second, time_offset);
+      pf.hdr.MJD_epoch += time_offset/86400;
   }
   
   pf.hdr.azimuth = 123.123;
@@ -373,40 +388,35 @@ int main(int argc, char *argv[]) {
       // Read one subint from each of the two files
       nspec1 = fread(tmpdata, pf.hdr.nbits/8 * nchan * pf.hdr.npol, pf.hdr.nsblk, pfi);
       nspec2 = fread(tmpdata2, pf.hdr.nbits/8 * nchan * pf.hdr.npol, pf.hdr.nsblk, pfi2);
-      
-      // Check if we read the same number of spectra. If not, should probably close..
-      //if (nspec1 != nspec2) {
-	  //printf("Error: %lld != %lld\n", nspec1, nspec2);
-      //} else nspec = nspec1;
 
-	  // Doesn't matter, EOF check on both files would stop the program
-	  nspec = nspec1;
-	  
+      // Doesn't matter, EOF check on both files would stop the program
+      nspec = nspec1;
+      file_size += nspec * pf.hdr.nbits/8 * nchan * pf.hdr.npol; // Assume we read the same number of spectra
+      
       // Check if EOF and open next file from band1
       if (feof (pfi)) {
-		// Close file
-		printf("Closing file %s\n", filename);
-		fclose(pfi);
-		fs += file_size;
-		sprintf(filename, "%s_%016"PRIu64".000000.dada", sfn, fs);
-		
-		if ( (pfi = fopen(filename, "r")) != NULL) {
+	  // Close file
+	  printf("Closing file %s\n", filename);
+	  fclose(pfi);
+	  sprintf(filename, "%s/%s_%016"PRIu64".000000.dada", path, sfn, file_size);
+	  
+	  if ( (pfi = fopen(filename, "r")) != NULL) {
 	      printf("Opening file %s\n", filename);
 	      fread (header, 1, DADA_HEADER_SIZE, pfi);
-		}
-		else {
-		  printf("No more data. Finishing...\n");
-		  break;
-		}
+	  }
+	  else {
+	      printf("Trying to open file %s\n", filename);
+	      printf("No more data. Finishing...\n");
+	      break;
+	  }
       }
 
       // Check if EOF and open next file from band2
       if (feof (pfi2) ) {
 	  // Close file
-          printf("Closing file %s\n", filename2);
+	  printf("Closing file %s\n", filename2);
           fclose(pfi2);
-          fs2 += file_size;
-          sprintf(filename2, "%s_%016"PRIu64".000000.dada", sfn2, fs2);
+          sprintf(filename2, "%s/%s_%016"PRIu64".000000.dada", path2, sfn2, file_size);
 
           if ( (pfi2 = fopen(filename2, "r")) != NULL) {
               printf("Opening file %s\n", filename2);
@@ -423,6 +433,7 @@ int main(int argc, char *argv[]) {
 			  pf.hdr.nbits * nchan * pf.hdr.npol/8, pf.hdr.nsblk-nspec, pfi);
 		fread(&tmpdata2[nspec*pf.hdr.nbits/8 * nchan * pf.hdr.npol],
 			  pf.hdr.nbits * nchan * pf.hdr.npol/8, pf.hdr.nsblk-nspec, pfi2);
+		file_size += (pf.hdr.nsblk-nspec) * pf.hdr.nbits/8 * nchan * pf.hdr.npol;
       }
 	  
       // Flip the second band
