@@ -34,8 +34,8 @@ LDADD = libpsrfits_utils.la @CFITSIO_LIBS@
 AM_CPPFLAGS = -DPSRFITS_TEMPLATE_DIR='"$(PSRFITS_UTILS)"' @CFITSIO_CFLAGS@
 AM_CXXFLAGS = -std=gnu++11
 
-bin_PROGRAMS = fold_psrfits psrfits_singlepulse psrfits_subband combine_mocks merge_psrfits fits_extract dada2psrfits fbk2psrfits calclean_psrfits combine_S45dada_psrfits
-
+bin_PROGRAMS = fold_psrfits psrfits_singlepulse psrfits_subband combine_mocks merge_psrfits fits_extract dada2psrfits fbk2psrfits calclean_psrfits combine_S45dada_psrfits combine_Pico
+ 
 if HAVE_PGPLOT
 bin_PROGRAMS += plot_psrfits 
 endif
@@ -71,7 +71,7 @@ endif
 
 if HAVE_PGPLOT
 plot_psrfits_SOURCES = plot_psrfits.c plot_psrfits_cmd.h plot_psrfits_cmd.c
-plot_psrfits_CFLAGS = @PTHREAD_CFLAGS@ $(AM_CFLAGS)
+plot_psrfits_CFLAGS = @PTHREAD_CFLAGS@ @PGPLOT_CFLAGS@ $(AM_CFLAGS)
 plot_psrfits_LDFLAGS = @PTHREAD_CFLAGS@ $(AM_LDFLAGS)
 plot_psrfits_LDADD = libpsrfits_utils.la @PTHREAD_LIBS@ @PGPLOT_LIBS@ @CFITSIO_LIBS@
 
