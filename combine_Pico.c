@@ -49,7 +49,7 @@ void usage() {
 		 "Usage: dada2Picofits [options] dadafiles\n"
 		 "Options:\n"
 		 "  -h, --help               Print this\n"
-		 "  -l, --lut                Set the LUT of the files provided, e.g. -l 0,2,3\n"
+		 "  -l, --lut                Set the LUT of the DADA files provided, e.g. -l 0,2,3\n"
 		 "  -f fff, --freq=ffff      Set the centre frequency (MHz)\n"
 		 "  -p, --psrname            Set PSRNAME string in psrfits archive\n"
 		 "  -r, --ra                 Set RA string in psrfits archive (e.g. 18:09:51.090) \n"
@@ -158,18 +158,24 @@ int main(int argc, char *argv[]) {
   LUT = (int *)malloc(nfiles*sizeof(int));
   
   // Decypher the string and create the LUT, e.g. 'x' indicates a missing file
+  // nfiles is the number of files provided in the command line
+  // ninput is the number of expected files available from the LUT, so ninput *should be equal* to nfiles
+  // nbands is the total number of bands: ninput+nmissing
   char seps[] = ",", c[1];
-  char *token; int var, kk=0;
+  char *token; int var, kk=0,iband=0;
   token = strtok (lut_string, seps);
   while (token != NULL) {
 	  rv = sscanf (token, "%d", &var);
 	  if (rv==0) { 
 	      rv = sscanf(token, "%c", c);
 	      if (rv && strncmp(c, "x", 1) == 0) {
-		  LUT[kk++] = -1;
+		  //LUT[kk++] = -1;
+		  printf("Set missing band #%d\n",iband);
+		  iband++;
 	      }
 		  
 	  } else {
+	      iband++;
 	      ninput++;
 	      LUT[kk++] = var;
 	  }
@@ -177,7 +183,13 @@ int main(int argc, char *argv[]) {
   }
 
   // Set the number of bands
-  nbands = kk;
+  nbands = iband;
+  printf("Lookup table:\n");
+  for (int ii=0; ii<nbands; ii++) {
+      printf("LUT[%d] = %d\n", ii, LUT[ii]);
+  }
+  printf("\n");
+  
   if (nfiles != ninput) {
       printf("Error: Number of input files does not equal the number of input in the LUT string\n");
       exit(-1);
@@ -190,13 +202,13 @@ int main(int argc, char *argv[]) {
       filename[ii] = (char *)malloc(nchar * sizeof(char));
       header[ii] = (char *)malloc(DADA_HEADER_SIZE * sizeof(char));
       date_obs[ii] = (char *)malloc(64 * sizeof(char));
-      
+
       strcpy(filename[ii], argv[optind+ii]);
       strcpy(path[ii], argv[optind+ii]);
       if((adr=(char *)strrchr(filename[ii],'/')) != NULL) strcpy(sfn[ii], adr+1);
       if((adr=(char *)strrchr(path[ii],'/')) != NULL) sprintf(adr,"\0");
 
-      pfi[ii] = open(filename[ii], 'r');
+      pfi[ii] = fopen(filename[ii], "r");
       
       if (pfi[ii]==NULL) {
 	  printf("Can not open %s\n", filename[ii]);
@@ -211,28 +223,19 @@ int main(int argc, char *argv[]) {
       }
 
       ascii_header_get (header[ii], "UTC_START", "%s", date_obs[ii]);
+      printf("UTC %s %d\n", date_obs[ii], ii);
       if (ii) {
-	  if (strcmp(date_obs[ii], date_obs[ii-1])) {
-	      printf("Error: UTC_START mismatch %s %s\n", date_obs[ii], date_obs[ii-1]);
-	      exit(-1);
+	  if (strcmp(date_obs[ii], date_obs[0])) {
+	      printf("Error: UTC_START mismatch between:\n%s: %s\n%s: %s\n", filename[0], date_obs[0], filename[ii],  date_obs[ii]);
+	      //exit(-1);
 	  }
       }
 
-      ascii_header_get (header[ii], "FREQ", "%lf", freq[ii]);
-	  
+      ascii_header_get (header[ii], "FREQ", "%lf", &freq[ii]);
 
 
   }
 
-  /*
-  uint64_t fs, fs2;
-  sscanf(filename,"%[^_]_%"PRIu64".000000.dada", sfn, &fs);
-  printf("Opening %s\n", filename);
-  sscanf(filename2,"%[^_]_%"PRIu64".000000.dada", sfn2, &fs2);
-  printf("Opening %s\n", filename2);
-
-  if (fs!=fs2) {printf("Error with input files:\n%s != %s\n", filename, filename2); return(-1);}
-  */
   pf.filenum = 0;           // This is the crucial one to set to initialize things
   pf.rows_per_file = 200;  // Need to set this based on PSR
   pf.hdr.nbits = 8;
@@ -258,19 +261,6 @@ int main(int argc, char *argv[]) {
   if (ascii_header_get (header[0], "TSAMP", "%lf", &sampling_interval))
       pf.hdr.dt = sampling_interval*1e-6; // IMPORTANT: TSAMP is the sampling period in microseconds
 	
-  /*
-  double freq, freq2;
-  if (ascii_header_get (header, "FREQ", "%lf", &freq) && ascii_header_get (header2, "FREQ", "%lf", &freq2)) {
-	if (freq>freq2) {
-	  printf("Error: Freq file 1: %lf  > Freq file 2: %lf\nSwap filenames in command line!\n", freq, freq2);
-	  exit(-1);
-	}
-      pf.hdr.fctr = (freq + freq2) / 2.;
-  }
-  if (have_freq) pf.hdr.fctr = input_freq;
-  printf("New central frequency: %lf\n", pf.hdr.fctr);
-  */
-
   if (have_freq) {
       pf.hdr.fctr = input_freq;                                                                                                           
       printf("New central frequency: %lf\n", pf.hdr.fctr);
@@ -376,11 +366,14 @@ int main(int argc, char *argv[]) {
   pf.sub.par_ang = 0.0;
   pf.sub.tel_az = pf.hdr.azimuth;
   pf.sub.tel_zen = pf.hdr.zenith_ang;
-  pf.sub.bytes_per_subint = (pf.hdr.nbits * pf.hdr.nchan * 
-			     pf.hdr.npol * pf.hdr.nsblk) / 8;
+  printf("nbits = %d, nchan = %d, npol = %d, nsblk = %d\n", pf.hdr.nbits, pf.hdr.nchan, pf.hdr.npol, pf.hdr.nsblk);
+  pf.sub.bytes_per_subint = (pf.hdr.nbits * (long int )pf.hdr.nchan * 
+			     pf.hdr.npol * (long int) pf.hdr.nsblk) / 8;
+  printf("bytes_per_subint = %ld\n", pf.sub.bytes_per_subint);
   if (pf.hdr.nbits==32) {pf.sub.FITS_typecode = TFLOAT;
       printf("Input is 32b. Output FITS type defaulting to FLOAT\n");}
-  else pf.sub.FITS_typecode = TBYTE;  // 11 = byte
+  else {pf.sub.FITS_typecode = TBYTE;  // 11 = byte
+      printf("Input is 8b. Output FITS type defaulting to TBYTE\n");}
 
   // Create and initialize the subint arrays
   pf.sub.dat_freqs = (float *)malloc(sizeof(float) * pf.hdr.nchan);
@@ -432,17 +425,23 @@ int main(int argc, char *argv[]) {
   uint8_t swap, *uptr;
   int8_t *sptr;
   char * tmpdata;
-  float **fptr, *fp;
+  float fswap;
+  float *fp, *fptr;
+
   tmpdata = (unsigned char *)malloc(pf.sub.bytes_per_subint);
-  fptr = (float **)malloc(nfiles * sizeof(float *));
+  //fptr_ar = (float **)malloc(nfiles * sizeof(float *));
   
   // TODO: properly set the pointers depending on obs frequency
-  for (int ii=0; ii<nfiles; ii++)
-      fptr[ii] = (float *) &tmpdata[LUT[ii] * pf.sub.bytes_per_subint/nbands];
+  fptr = (float *) tmpdata;
+  //for (int ii=0; ii<nfiles; ii++) {
+  //fptr_ar[ii] = (float *) &tmpdata[LUT[ii] * pf.sub.bytes_per_subint/nbands];
+      //sptr[ii] = (int8_t *) &tmpdata[LUT[ii] * pf.sub.bytes_per_subint/nbands];
+  //}
 
   pf.sub.rawdata = (unsigned char *)malloc(pf.sub.bytes_per_subint);
-
+  
   // Here is the real data-writing loop
+  bool stop=false;
   do {
 
       // Set memory to 0
@@ -450,13 +449,13 @@ int main(int argc, char *argv[]) {
 
       // Read one subint from each of the files
       for (int ii=0; ii<nfiles; ii++) {
-	  nspec = fread(fptr[ii], pf.hdr.nbits/8 * nchan * pf.hdr.npol, pf.hdr.nsblk, pfi[ii]);
+	  nspec = fread(&tmpdata[LUT[ii] * pf.sub.bytes_per_subint/nbands], pf.hdr.nbits/8 * nchan * pf.hdr.npol, pf.hdr.nsblk, pfi[ii]);
       }
 
       // Doesn't matter, EOF check on both files would stop the program
       file_size += nspec * pf.hdr.nbits/8 * nchan * pf.hdr.npol; // Assume we read the same number of spectra
 
-      // Check if EOF
+      // Loop over files to check if EOF
       for (int ii=0; ii<nfiles; ii++) {
 	  // Check if EOF and open next file from band1
 	  if (feof (pfi[ii])) {
@@ -465,50 +464,66 @@ int main(int argc, char *argv[]) {
 	      fclose(pfi[ii]);
 	      //fs += file_size;
 	      sprintf(filename[ii], "%s/%s_%016"PRIu64".000000.dada", path[ii], sfn[ii], file_size);
-	      
+
+	      // Try to open new file
 	      if ( (pfi[ii] = fopen(filename[ii], "r")) != NULL) {
 		  printf("Opening file %s\n", filename[ii]);
 		  fread (header[ii], 1, DADA_HEADER_SIZE, pfi[ii]);
 	      }
+	      // Failed, so get out of here
 	      else {
 		  printf("No more data. Finishing...\n");
+		  stop=true;
 		  break;
 	      }
 	  }
       }
 
-      // Need to read some more data from both files
+      if (stop) break;
+      
+      // Check if we need to read some more data from the newly opened files
       if (nspec < pf.hdr.nsblk) {
 	  for (int ii=0; ii<nfiles; ii++) {
 	      fread(&tmpdata[LUT[ii] * pf.sub.bytes_per_subint/nbands + nspec*pf.hdr.nbits/8 * nchan * pf.hdr.npol],
-		    pf.hdr.nbits * nchan * pf.hdr.npol/8, pf.hdr.nsblk-nspec, pfi[ii]);
+		    pf.hdr.nbits/8 * nchan * pf.hdr.npol, pf.hdr.nsblk-nspec, pfi[ii]);
 	  }
       }
-#if 0	  
+
+      //for (int zz=0; zz<1024; zz++)
+      //	  printf("%d %f\n", zz, fptr[0][zz]);
+      //exit(-1);
+
+
       // Flip the second band
       // Only works for 32-bit values
       if (pf.hdr.nbits==32) {
 	  for (int jj=0; jj<pf.hdr.nsblk; jj++) {
-	      for (int ii=0; ii< 3; ii++) {
-
-		  fp = (float *) &fptr[(jj*pf.hdr.npol + ii) * nchan];
-		  for (int kk=0; kk<nchan/2; kk++) {
-		      swap = fp[nchan-1-kk];
-		      fp[nchan-1-kk] = fp[kk];
-		      fp[kk] = swap;
-		  }
-	      }
-	      for (ii=3; ii<4; ii++) {
-		  fptr = (float *) &tmpdata2_f[(jj*pf.hdr.npol + ii) * nchan];
-		  for (int kk=0; kk<nchan/2; kk++) {
-		      swap = -1*fp[nchan-1-kk];
-		      fp[nchan-1-kk] = -1*fp[kk];
-		      fp[kk] = swap;
+	      for (int ll=0; ll<nfiles; ll++) {
+		  if (LUT[ll] % 2) {
+		      // Point to the temp data if second or fourth Roach2 bands
+		      fptr = (float *) &tmpdata[LUT[ll] * pf.sub.bytes_per_subint/nbands];    
+		      for (int ii=0; ii< 3; ii++) {
+			  
+			  fp = (float *) &fptr[(jj*pf.hdr.npol + ii) * nchan];
+			  for (int kk=0; kk<nchan/2; kk++) {
+			      fswap = fp[nchan-1-kk];
+			      fp[nchan-1-kk] = fp[kk];
+			      fp[kk] = fswap;
+			  }
+		      }
+		      for (int ii=3; ii<4; ii++) {
+			  fp = (float *) &fptr[(jj*pf.hdr.npol + ii) * nchan];
+			  for (int kk=0; kk<nchan/2; kk++) {
+			      fswap = -1*fp[nchan-1-kk];
+			      fp[nchan-1-kk] = -1*fp[kk];
+			      fp[kk] = fswap;
+			  }
+		      }
 		  }
 	      }
 	  }
       }
-#endif      
+
 
       // Reorder the data / Transpose from the two separated bands to one band
       reorder_data(pf.sub.rawdata, tmpdata, nbands, pf.hdr.nsblk, pf.hdr.npol, nchan, pf.hdr.nbits);
