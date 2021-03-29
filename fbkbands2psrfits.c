@@ -15,6 +15,21 @@
 #define RADTODEG 57.29577951308232087679815481410517033240547246656
 #endif
 
+void reorder_data(unsigned char* outbuf, unsigned char *inbuf, int nband, int nspec, int npol, int nchan, int nbits) {
+    int band, spec, pol, inoff = 0, outoff = 0;
+    int spband = nspec * npol * nchan;
+    int spspec = npol * nchan;
+
+    for (spec = 0 ; spec < nspec ; spec++) {
+        for (pol = 0 ; pol < npol ; pol++) {
+	    for (band = 0 ; band < nband ; band++) {
+                inoff = (band * spband + pol * nchan + spec * spspec) * nbits/8.;
+                memcpy(outbuf + outoff, inbuf + inoff, nchan * nbits/8.);
+                outoff += nchan * nbits/8.;
+	    }
+        }
+    }
+}
 
 void usage() {
   printf(
@@ -53,20 +68,21 @@ int main(int argc, char *argv[]) {
     };
     
     int ii;
-    double dtmp;
+    double dtmp, fctr;
     char *adr;
     struct psrfits pf;
     int c1,c2;
     double c3;
     int opt, opti, nfiles;
     int scan_id, beam_id, nchar=256;
-    bool have_Stokes = false;
+    bool have_Stokes = false, run;
     bool have_chan_offset = false;
     bool have_frontend = false; char frontend[3];
     bool have_srcname = false; char srcname[24];
-    long long *numsamps, header_size;
+    long long *numsamps, header_size, nspec;
     header *headers;
     char **filename;
+    unsigned char *tmpdata;
     FILE **pfi;
     
     while ((opt=getopt_long(argc,argv,"ob:t:j:i:F:s:p:P:F:CuU:SAqh",long_opts,&opti))!=-1) {
@@ -100,6 +116,7 @@ int main(int argc, char *argv[]) {
     filename = (char **) malloc(nfiles * sizeof(char *));
     headers = (header *) malloc(nfiles * sizeof(header));
     numsamps = (long long *) malloc(nfiles * sizeof(long long));
+    //tmpdata = (unsigned char *)malloc(pf.sub.bytes_per_subint);
 
     for (int ii=0; ii<nfiles; ii++) {
 
@@ -125,48 +142,59 @@ int main(int argc, char *argv[]) {
 	
 	// Get the number of samples                                                                              
 	numsamps[ii] = nsamples(filename[ii], header_size, &headers[ii]);
-	printf("numsamps = %lld  ra=%lf  dec=%lf freq=%lf nchans=%d\n", numsamps[ii], headers[ii].src_raj, headers[ii].src_dej, headers[ii].fch1, headers[ii].nchans);
-	//fclose(pfi[ii]);
+	//printf("numsamps = %lld  ra=%lf  dec=%lf freq=%lf foff=%lf nchans=%d\n", numsamps[ii], headers[ii].src_raj, headers[ii].src_dej, headers[ii].fch1, headers[ii].foff, headers[ii].nchanS);
 
+	// Check for start time 
+	if (ii) {
+	    if (headers[ii].tstart != headers[ii-1].tstart) {
+		printf("Error: %s (%lf) != %s (%lf)\n", filename[ii], headers[ii].tstart, filename[ii-1], headers[ii-1].tstart);
+		exit(-1);
+	    }
+	}
+
+	fctr = headers[ii].fch1 + headers[ii].foff * headers[ii].nchans/2. - headers[ii].foff/2.;
+	printf("fctr = %lf\n", fctr);
+	
     }
-#if 0
+    //#if 0
 	
     pf.filenum = 0;           // This is the crucial one to set to initialize things
     pf.rows_per_file = 4000;  // Need to set this based on PSRFITS_MAXFILELEN
 
     // Now set values for our hdrinfo structure
-    pf.hdr.scanlen = 3600; // in sec
+    pf.hdr.scanlen = 86400; // in sec
     strcpy(pf.hdr.observer, "Observer");
     strcpy(pf.hdr.telescope, "Effelsberg");
     strcpy(pf.hdr.obs_mode, "SEARCH");
     strcpy(pf.hdr.backend, "ASTERIX");
-    strncpy(pf.hdr.source, iheader.source_name, 24);
+    strncpy(pf.hdr.source, headers[0].source_name, 24);
     strcpy(pf.hdr.frontend, "LBand");
     strcpy(pf.hdr.project_id, "Eff");
     strcpy(pf.hdr.date_obs, "2010-01-01T05:15:30.000");
     strcpy(pf.hdr.poln_type, "LIN");
-    strcpy(pf.hdr.poln_order, "IQUV");
+    strcpy(pf.hdr.poln_order, "AABBCRCI");
     strcpy(pf.hdr.track_mode, "TRACK");
     strcpy(pf.hdr.cal_mode, "OFF");
     strcpy(pf.hdr.feed_mode, "FA");
     
-    if(strstr(filename,"/") != NULL) { adr=(char *)strrchr(filename,'/')+1; sprintf(pf.filename,"%s",adr); }
-    else strncpy(pf.filename, filename, 80);
+    if(strstr(filename[0],"/") != NULL) { adr=(char *)strrchr(filename[0],'/')+1; sprintf(pf.filename,"%s",adr); }
+    else strncpy(pf.filename, filename[0], 80);
     
     
       
-    pf.hdr.dt = iheader.tsamp;
-    pf.hdr.fctr = iheader.fch1+iheader.foff*iheader.nchans/2. - iheader.foff/2.;
+    pf.hdr.dt = headers[0].tsamp;
+    // GD pf.hdr.fctr = iheader.fch1+iheader.foff*iheader.nchans/2. - iheader.foff/2.;
+    pf.hdr.fctr = fctr;
 
 	
-    pf.hdr.BW = iheader.nchans * iheader.foff;
-    angle_split(iheader.src_raj, &c1, &c2, &c3);
+    pf.hdr.BW = nfiles * headers[0].nchans * headers[0].foff;
+    angle_split(headers[0].src_raj, &c1, &c2, &c3);
     sprintf(pf.hdr.ra_str, "%2.2d:%2.2d:%07.4lf", c1, c2, c3);
     
-    angle_split(iheader.src_dej, &c1, &c2, &c3);
+    angle_split(headers[0].src_dej, &c1, &c2, &c3);
     sprintf(pf.hdr.dec_str, "%2.2d:%2.2d:%07.4lf", c1, c2, c3);
-    pf.hdr.azimuth = iheader.az_start;
-    pf.hdr.zenith_ang = iheader.za_start;
+    pf.hdr.azimuth = headers[0].az_start;
+    pf.hdr.zenith_ang = headers[0].za_start;
     pf.hdr.beam_FWHM = 0.25;
     pf.hdr.start_lst = 0.0;
     pf.hdr.start_sec = 0.0;
@@ -175,11 +203,11 @@ int main(int argc, char *argv[]) {
     pf.hdr.rcvr_polns = 2;
     pf.hdr.summed_polns = 0;
     pf.hdr.offset_subint = 0;
-    pf.hdr.nchan = iheader.nchans;
+    pf.hdr.nchan = nfiles * headers[0].nchans;
     pf.hdr.orig_nchan = pf.hdr.nchan;
     pf.hdr.orig_df = pf.hdr.df = pf.hdr.BW / pf.hdr.nchan;
-    pf.hdr.nbits = iheader.nbits;
-    pf.hdr.npol = iheader.nifs;
+    pf.hdr.nbits = headers[0].nbits;
+    pf.hdr.npol = headers[0].nifs;
     pf.hdr.onlyI = 0;
     if (pf.hdr.npol==1) pf.hdr.onlyI = 1;
     pf.hdr.chan_dm = 0.0;
@@ -187,9 +215,9 @@ int main(int argc, char *argv[]) {
     pf.hdr.fd_sang = 0;
     pf.hdr.fd_xyph = 0;
     pf.hdr.be_phase = 1;
-    pf.hdr.ibeam = beam_id;
-    pf.hdr.nsblk = 2048;
-    pf.hdr.MJD_epoch = iheader.tstart;  // Note the "L" for long double
+    pf.hdr.ibeam = 0;
+    pf.hdr.nsblk = 4096;
+    pf.hdr.MJD_epoch = headers[0].tstart;  // Note the "L" for long double
     pf.hdr.ds_time_fact = 1;
     pf.hdr.ds_freq_fact = 1;
 
@@ -250,11 +278,11 @@ int main(int argc, char *argv[]) {
     if (have_srcname) strncpy(pf.hdr.source, srcname, 24);
     
     if (have_Stokes) strcpy(pf.hdr.poln_order, "IQUV");
+
+    printf("nbits = %d, nchan = %d, npol = %d, nsblk = %d\n", pf.hdr.nbits, pf.hdr.nchan, pf.hdr.npol, pf.hdr.nsblk);
+    printf("bytes_per_subint = %ld\n", pf.sub.bytes_per_subint);
     
-    if (strncmp(pf.hdr.backend, "PFFTS",5)==0)
-	sprintf(pf.basefilename, "%s_%04d_%02d", pf.hdr.backend, pf.hdr.scan_number, pf.hdr.ibeam);
-    else
-	sprintf(pf.basefilename, "%s_%s_%5d_%d", pf.hdr.backend, pf.hdr.source, (int) pf.hdr.MJD_epoch, (int) pf.hdr.fctr);
+    sprintf(pf.basefilename, "%s_%s_%5d_%5d_%d", pf.hdr.backend, pf.hdr.source, (int) pf.hdr.MJD_epoch, (int) ((pf.hdr.MJD_epoch-(int)pf.hdr.MJD_epoch) * 1e5), (int) pf.hdr.fctr);
 
     // Create the FITS file
     psrfits_create(&pf);
@@ -278,17 +306,29 @@ int main(int argc, char *argv[]) {
     // This is what you would update for each time sample (likely just
     // adjusting the pointer to point to your data)
     pf.sub.rawdata = (unsigned char *)malloc(pf.sub.bytes_per_subint);
+    tmpdata = (unsigned char *)malloc(pf.sub.bytes_per_subint);
    
     // Here is the real data-writing loop
     do {
-      // Update the pf.sub entries here for each subint
-      // as well as the pf.sub.data pointer
-      
-      fread(pf.sub.rawdata, pf.sub.bytes_per_subint, 1, pfi);
-      pf.sub.offs = (pf.tot_rows + 0.5) * pf.sub.tsubint;
-      
-      psrfits_write_subint(&pf);
-    } while (pf.T < pf.hdr.scanlen && !feof (pfi) && !pf.status);
+	// Update the pf.sub entries here for each subint
+	// as well as the pf.sub.data pointer
+	
+	run = true;
+
+	for (int ii=0; ii<nfiles; ii++) {
+	    nspec = fread(&tmpdata[ii * pf.sub.bytes_per_subint/nfiles], pf.sub.bytes_per_subint/nfiles, 1, pfi[ii]);
+	    if (nspec != pf.sub.bytes_per_subint) {
+		if (feof(pfi[ii])) run=false;
+	    }
+	}
+	printf("run=%d\n",run);
+	//fread(pf.sub.rawdata, pf.sub.bytes_per_subint, 1, pfi);
+	pf.sub.offs = (pf.tot_rows + 0.5) * pf.sub.tsubint;
+	
+	reorder_data(pf.sub.rawdata, tmpdata, nfiles, pf.hdr.nsblk, pf.hdr.npol, headers[0].nchans, pf.hdr.nbits);
+
+	psrfits_write_subint(&pf);
+    } while (pf.T < pf.hdr.scanlen && run && !pf.status);
     
     // Close the last file and cleanup
     fits_close_file(pf.fptr, &(pf.status));
@@ -300,7 +340,7 @@ int main(int argc, char *argv[]) {
 
     printf("Done.  Wrote %d subints (%f sec) in %d files.  status = %d\n", 
            pf.tot_rows, pf.T, pf.filenum, pf.status);
-#endif
+    //#endif
 
     printf("Here\n");fflush(stdout);
     free(headers);
