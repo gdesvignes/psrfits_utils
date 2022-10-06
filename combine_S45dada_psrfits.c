@@ -132,6 +132,7 @@ int main(int argc, char *argv[]) {
   FILE *pfi, *pfi2;
   char *adr, filename[256], sfn[256], filename2[256], sfn2[256], path[256], path2[256];
   char ffn[256], ffn2[256];
+  char sfx[40];
   strcpy(ffn, argv[optind]);
   if((adr=(char *)strrchr(ffn,'/')) != NULL) strcpy(filename,adr+1);
   strcpy(ffn2, argv[optind+1]);
@@ -144,11 +145,17 @@ int main(int argc, char *argv[]) {
   
 
   uint64_t fs, fs2;
-  sscanf(filename,"%[^_]_%"PRIu64".000000.dada", sfn, &fs);
+  sscanf(filename,"%[^_]_%"PRIu64".%s", sfn, &fs, sfx);
   printf("Opening %s\n", ffn);
-  sscanf(filename2,"%[^_]_%"PRIu64".000000.dada", sfn2, &fs2);
+  sscanf(filename2,"%[^_]_%"PRIu64".%s", sfn2, &fs2, sfx);
   printf("Opening %s\n", ffn2);
- 
+
+  if (strncmp(sfx, "R2D", 3)==0) {
+      printf("New R2D format\n");
+  } else {
+      printf("Old format: %s\n", sfx);
+  }
+  
   if (fs!=fs2) {printf("Error with input files:\n%s != %s\n", ffn, ffn2); return(-1);}
 
   pfi = fopen(ffn, "r");
@@ -398,7 +405,7 @@ int main(int argc, char *argv[]) {
 	  // Close file
 	  printf("Closing file %s\n", filename);
 	  fclose(pfi);
-	  sprintf(filename, "%s/%s_%016"PRIu64".000000.dada", path, sfn, file_size);
+	  sprintf(filename, "%s/%s_%016"PRIu64".%s", path, sfn, file_size, sfx);
 	  
 	  if ( (pfi = fopen(filename, "r")) != NULL) {
 	      printf("Opening file %s\n", filename);
@@ -416,7 +423,7 @@ int main(int argc, char *argv[]) {
 	  // Close file
 	  printf("Closing file %s\n", filename2);
           fclose(pfi2);
-          sprintf(filename2, "%s/%s_%016"PRIu64".000000.dada", path2, sfn2, file_size);
+          sprintf(filename2, "%s/%s_%016"PRIu64".%s", path2, sfn2, file_size, sfx);
 
           if ( (pfi2 = fopen(filename2, "r")) != NULL) {
               printf("Opening file %s\n", filename2);
