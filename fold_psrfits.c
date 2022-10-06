@@ -501,7 +501,8 @@ int main(int argc, char *argv[]) {
             */
 
             /* Transpose, output subint */
-            normalize_transpose_folds((float *)pf_out.sub.data, &fb);
+	    memset(pf_out.sub.data, 0, pf_out.sub.bytes_per_subint);
+            normalize_transpose_folds((float *)pf_out.sub.data, &fb, 1);
             int last_filenum = pf_out.filenum;
             psrfits_write_subint(&pf_out);
 

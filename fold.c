@@ -391,18 +391,35 @@ int accumulate_folds(struct foldbuf *ftot, const struct foldbuf *f) {
 }
 
 /* normalize and transpose to psrfits order */
-int normalize_transpose_folds(float *out, const struct foldbuf *f) {
-    int ibin, ii;
+int normalize_transpose_folds(float *out, const struct foldbuf *f, const int fscrunch) {
+    int ibin, ii, ichan, iichan, ipol;
+#if 1   
     for (ibin=0; ibin<f->nbin; ibin++) {
         if (f->count[ibin]==0) {
-            for (ii=0; ii<f->nchan*f->npol; ii++) 
+            for (ii=0; ii<f->nchan/fscrunch*f->npol; ii++) 
                 out[ibin + ii*f->nbin] = 0.0;
         } else {
-            for (ii=0; ii<f->nchan*f->npol; ii++) 
-                out[ibin + ii*f->nbin] =
-                    f->data[ii + ibin*f->nchan*f->npol] / (float)f->count[ibin];
+	    for (ichan=0; ichan<f->nchan;ichan++) {
+		iichan = (int)(ichan / fscrunch);
+		for (ipol=0; ipol<f->npol ;ipol++) {
+		    out[ibin + iichan * f->nbin + ipol*f->nchan/fscrunch*f->nbin] += f->data[ichan + ipol*f->nchan + ibin*f->nchan*f->npol] / (float)f->count[ibin];
+		}
+	    }
         }
     }
+#endif
+#if 0
+    for (ibin=0; ibin<f->nbin; ibin++) {
+	if (f->count[ibin]==0) {
+	    for (ii=0; ii<f->nchan*f->npol; ii++)
+		out[ibin + ii*f->nbin] = 0.0;
+	} else {
+	    for (ii=0; ii<f->nchan*f->npol; ii++)
+		out[ibin + ii*f->nbin] =
+		    f->data[ii + ibin*f->nchan*f->npol] / (float)f->count[ibin];
+	}
+    }
+#endif
     return(0);
 }
 

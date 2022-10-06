@@ -19,7 +19,7 @@ void clear_foldbuf(struct foldbuf *f);
 size_t foldbuf_data_size(const struct foldbuf *f);
 size_t foldbuf_count_size(const struct foldbuf *f);
 
-int normalize_transpose_folds(float *out, const struct foldbuf *f);
+int normalize_transpose_folds(float *out, const struct foldbuf *f, const int fscrunch);
 
 struct fold_args {
     struct polyco *pc;

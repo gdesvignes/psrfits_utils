@@ -25,6 +25,7 @@ void usage() {
             "  -o name, --output=name   Output base filename (auto-generate)\n"
             "  -n nn, --npulse=nn       Number of pulses per output file (64)\n"
             "  -b nn, --nbin=nn         Number of profile bins (256)\n"
+	    "  -c nn, --fscrunch=nn     Frequency scrunch the band while folding\n"
             "  -i nn, --initial=nn      Starting input file number (1)\n"
             "  -f nn, --final=nn        Ending input file number (auto)\n"
             "  -T nn, --time=nn         Start nn seconds in (0)\n"
@@ -51,6 +52,7 @@ int main(int argc, char *argv[]) {
         {"nthread", 1, NULL, 'j'},
         {"initial", 1, NULL, 'i'},
         {"final",   1, NULL, 'f'},
+	{"fscrunch",1, NULL, 'c'},
         {"time",    1, NULL, 'T'},
         {"length",  1, NULL, 'L'},
         {"src",     1, NULL, 's'},
@@ -69,13 +71,16 @@ int main(int argc, char *argv[]) {
     int nbin=256, nthread=4, fnum_start=1, fnum_end=0;
     int quiet=0, raw_signed=1, use_polycos=1, cal=0;
     int npulse_per_file = 64, req_pulse=0;
+    int fscrunch = 1;
     double start_time=0.0, process_time=0.0;
     double fold_frequency=0.0;
+    double init_phase;
+    double cphase;
     char output_base[256] = "";
     char polyco_file[256] = "";
     char par_file[256] = "";
     char source[24];  source[0]='\0';
-    while ((opt=getopt_long(argc,argv,"o:n:b:j:i:f:T:L:s:p:P:r:F:CuU:qh",long_opts,&opti))!=-1) {
+    while ((opt=getopt_long(argc,argv,"o:n:b:j:i:f:c:T:L:s:p:P:r:F:CuU:qh",long_opts,&opti))!=-1) {
         switch (opt) {
             case 'o':
                 strncpy(output_base, optarg, 255);
@@ -96,6 +101,9 @@ int main(int argc, char *argv[]) {
             case 'f':
                 fnum_end = atoi(optarg);
                 break;
+	    case 'c':
+	        fscrunch = atoi(optarg);
+		break;
             case 'T':
                 start_time = atof(optarg);
                 break;
@@ -164,11 +172,11 @@ int main(int argc, char *argv[]) {
     if (rv) { fits_report_error(stderr, rv); exit(1); }
 
     /* Check any constraints */
-    if (pf.hdr.nbits!=8) { 
-        fprintf(stderr, "Only implemented for 8-bit data (read nbits=%d).\n",
-                pf.hdr.nbits);
-        exit(1);
-    }
+    //if (pf.hdr.nbits!=8) { 
+    //    fprintf(stderr, "Only implemented for 8-bit data (read nbits=%d).\n",
+    //            pf.hdr.nbits);
+    //    exit(1);
+    //}
 
     /* Check for calfreq */
     if (cal) {
@@ -216,6 +224,8 @@ int main(int argc, char *argv[]) {
     pf_out.status=0;
     pf_out.hdr.nbin=nbin;
     pf_out.sub.FITS_typecode = TFLOAT;
+    pf_out.hdr.nchan /= fscrunch;
+    pf_out.hdr.df *= fscrunch;
     pf_out.sub.bytes_per_subint = sizeof(float) * 
         pf_out.hdr.nchan * pf_out.hdr.npol * pf_out.hdr.nbin;
     pf_out.multifile = 1;
@@ -259,6 +269,9 @@ int main(int argc, char *argv[]) {
     }
     for (i=0; i<pf.hdr.nchan; i++) { pf_out.sub.dat_weights[i]=1.0; }
 
+    int ctmp=0;
+    float freqtmp;
+    
     /* Read or make polycos */
     int npc=0, ipc=0;
     struct polyco *pc = NULL;
@@ -322,7 +335,7 @@ int main(int argc, char *argv[]) {
     rv=0;
     int imjd;
     double fmjd, fmjd0=0, fmjd_samp, fmjd_epoch;
-    long long cur_pulse=0, last_pulse=0;
+    long long first_pulse=0, cur_pulse=0, last_pulse=0;
     double psr_freq=0.0;
     int first_loop=1, first_data=1, sampcount=0, last_filenum=0;
     int bytes_per_sample = pf.hdr.nchan * pf.hdr.npol;
@@ -383,11 +396,14 @@ int main(int argc, char *argv[]) {
         }
 
         if (first_data) {
-           psr_phase(&pc[ipc], imjd, fmjd, NULL, &last_pulse);
-           first_data=0;
+	  init_phase = psr_phase(&pc[ipc], imjd, fmjd, NULL, &last_pulse);
+	  first_pulse = last_pulse;
+	  last_pulse++;
+	  first_data=0;
         }
-
+	
         /* Check to see if we're done */
+
         if (process_time>0.0) {
             double cur_time = (fmjd - fmjd0) * 86400.0;
             if (cur_time > start_time + process_time) {
@@ -408,7 +424,13 @@ int main(int argc, char *argv[]) {
             sampcount++;
 
             /* Calc current pulse number */
-            psr_phase(&pc[ipc], imjd, fmjd_samp, &psr_freq, &cur_pulse);
+	    //if (1) {
+	    //  pc[ipc].rphase -= init_phase;
+	    //  while(pc[ipc].rphase < 0)
+	    //pc[ipc].rphase += 1;
+	    //}
+            cphase = psr_phase(&pc[ipc], imjd, fmjd_samp, &psr_freq, &cur_pulse);
+	    //if (cur_pulse==5411165 || pf.rownum==25) printf("init phase = %lf rownum=%d =cphase = %lf cur_pulse =%lld\n", init_phase, pf.rownum, cphase, cur_pulse);
 
             /* TODO: deal with scale/offset? */
 
@@ -416,10 +438,21 @@ int main(int argc, char *argv[]) {
             fargs.pc = &pc[ipc];
             fargs.imjd = imjd;
             fargs.fmjd = fmjd_samp;
-            rv = fold_8bit_power(fargs.pc, 
+	    if (pf.hdr.nbits==8)
+		rv = fold_8bit_power(fargs.pc, 
                     fargs.imjd, fargs.fmjd, 
                     fargs.data + i*bytes_per_sample,
                     fargs.nsamp, fargs.tsamp, fargs.raw_signed, fargs.fb);
+	    else if (pf.hdr.nbits==32)
+		rv = fold_float_power(fargs.pc,
+				     fargs.imjd, fargs.fmjd,
+				      (const float *)fargs.data + i*bytes_per_sample,
+				     fargs.nsamp, fargs.tsamp, fargs.fb);
+	    else {
+		fprintf(stderr, "Nbits = %d is not supported.\n", pf.hdr.nbits);
+		exit(1);
+	    }
+		
             if (rv!=0) {
                 fprintf(stderr, "Fold error.\n");
                 exit(1);
@@ -433,8 +466,21 @@ int main(int argc, char *argv[]) {
                 pf_out.sub.tsubint = 1.0/psr_freq;
                 fmjd_epoch = fmjd0 + pf_out.sub.offs/86400.0;
 
+
+		ctmp = 0;
+		for (j=0; j<pf_out.hdr.nchan; j++) {
+		    freqtmp = 0.0;
+		    for (ichan=0; ichan<fscrunch; ichan++) {
+			freqtmp += pf_out.sub.dat_freqs[ctmp]; ctmp++;
+		    }
+		    pf_out.sub.dat_freqs[j] = freqtmp/fscrunch;
+		    //printf("freq[%d] = %f\n", i, pf_out.sub.dat_freqs[i]);
+		}
+
                 /* Transpose, output subint */
-                normalize_transpose_folds((float *)pf_out.sub.data, &fb);
+		// pf_out.sub.data  = (unsigned char *)malloc(pf_out.sub.bytes_per_subint);
+		memset(pf_out.sub.data, 0, pf_out.sub.bytes_per_subint);
+                normalize_transpose_folds((float *)pf_out.sub.data, &fb, fscrunch);
                 psrfits_write_subint(&pf_out);
 
                 /* If file incremented, clear polyco flags */
@@ -462,7 +508,8 @@ int main(int argc, char *argv[]) {
                 last_pulse = cur_pulse;
                 last_filenum = pf_out.filenum;
 
-		if (req_pulse && cur_pulse - last_pulse > req_pulse) {
+		//printf("cur pulse = %lld   last pulse = %lld  req = %lld\n", cur_pulse, last_pulse, req_pulse);
+		if (req_pulse && cur_pulse - first_pulse >= req_pulse) {
 		  run = 0;
 		  break;
 		}
