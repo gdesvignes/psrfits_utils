@@ -34,6 +34,8 @@ LDADD = libpsrfits_utils.la @CFITSIO_LIBS@
 AM_CPPFLAGS = -DPSRFITS_TEMPLATE_DIR='"$(PSRFITS_UTILS)"' @CFITSIO_CFLAGS@
 AM_CXXFLAGS = -std=gnu++11
 
+AM_CFLAGS = -fopenmp
+
 bin_PROGRAMS = fold_psrfits psrfits_singlepulse psrfits_subband combine_mocks merge_psrfits fits_extract dada2psrfits fbk2psrfits calclean_psrfits combine_S45dada_psrfits combine_Pico fbkbands2psrfits
  
 if HAVE_PGPLOT
