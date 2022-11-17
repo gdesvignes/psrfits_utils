@@ -7,11 +7,11 @@
 #include <stdbool.h>
 #include <inttypes.h>
 #include "psrfits.h"
-#include "calclean_psrfits.h"
+#include "calibrate_psrfits.h"
 
 #include <string>
 #include <iostream>
-#include "ekstrom.h"
+#include <vector>
 
 // Record the execution time of some code, in milliseconds.
 #if 0
@@ -24,29 +24,23 @@
 #define CLEAR_AVERAGE_TIMING(s) timeTally_##s = 0; countTally_##s = 0
 #endif
 
-#ifdef HAVE_PSRCHIVE
+#include "Pauli.h"
 #include "Pulsar/Archive.h"
 #include "Pulsar/PolnCalibrator.h"
-#include "Pulsar/CalibratorStokes.h"
-#include "Pulsar/CalibratorTypes.h"
 #include "Pulsar/PolnCalibratorExtension.h"
-#endif
-
-//using namespace Pulsar;
+#include "Pulsar/SingleAxisCalibrator.h"
+#include "Pulsar/Telescope.h"
+#include "Pulsar/Receiver.h"
+#include "Horizon.h"
+#include "MJD.h"
 
 void usage() {
   printf(
-		 "Usage: dada2psrfits [options] input_filename_base\n"
+		 "Usage: calibrate_psrfits [options] input_filename_base\n"
 		 "Options:\n"
 		 "  -h, --help               Print this\n"
-#ifdef HAVE_PSRCHIVE
 		 "  -c, --cal CAL_archive    Calibrate using a PSRchive noise diode observation\n"
-#endif
-		 "  -m, --median_clean       Clean the baseline using running median of width 'w'\n"
-		 "  -n, --ncploop            Process only ncploop channels per loop\n"
-		 "  -s, --skip               Skip nsamples for the median\n"
 		 "  -t, --nthreads           Use nthreads for processing\n"
-		 "  -w, --window             Set the window to compute the running mean\n"
 		 );
 }
 
@@ -56,43 +50,32 @@ int main(int argc, char *argv[]) {
   static struct option long_opts[] = {
 	{"help",      0, NULL, 'h'},
 	{"cal",       1, NULL, 'c'},
-	{"median_clean", 0, NULL, 'm'},
-	{"ncploop",   1, NULL, 'n'},
 	{"nthreads",  1, NULL, 't'},
-	{"window",    1, NULL, 'w'},
 	{0,0,0,0}
   };
 
   int status,opt, opti;
-  int rv=0,nchan_per_loop=1, nthreads=1;
-  int boxsize = 4096, nskip=1, fnum_start=1;
+  int rv=0,nchan_per_loop=1, nthreads=1, fnum_start=1;
   struct psrfits pfi, pf;
   char ra_str[16], dec_str[16], source[24];
   char cal_file[128];
-  bool median_clean=false, have_cal_file=false;
-  while ((opt=getopt_long(argc,argv,"c:mn:s:t:w:h", long_opts,&opti))!=-1) {
+  bool have_cal_file=false;
+  double PA;
+  long double mjd;
+
+  Matrix<4,4,double> MPA;
+  // Form the parallactic angle matrix 
+  MPA[0][0] = 1; MPA[3][3] = 1;
+  
+  while ((opt=getopt_long(argc,argv,"c:t:h", long_opts,&opti))!=-1) {
       switch (opt) {
-#ifdef HAVE_PSRCHIVE
       case 'c':
-		strncpy(cal_file, optarg, 128);
-		have_cal_file = true;
-		break;
-#endif
-	  case 'm':
-		median_clean = true;
-		break;
-      case 'n':
-		nchan_per_loop = atoi(optarg);
-		break;
-	  case 's':
-		nskip = atoi(optarg);
-		break;
-	  case 't':
-		nthreads = atoi(optarg);
-		break;
-	  case 'w':
-		boxsize = atoi(optarg);
-		break;
+	  strncpy(cal_file, optarg, 128);
+	  have_cal_file = true;
+	  break;
+      case 't':
+	  nthreads = atoi(optarg);
+	  break;
       case 'h':
       default:
 	  usage();
@@ -124,114 +107,101 @@ int main(int argc, char *argv[]) {
   // Copy header for the output file
   memcpy(&pf, &pfi, sizeof(pfi));
 
+  // MJD
+  mjd = pf.hdr.MJD_epoch;
+      
   pf.filenum=0;
   // Change output to 32 bits
   if (have_cal_file) {
 	pf.hdr.nbits = 32;
 	pf.sub.FITS_typecode = TFLOAT;
 	std::cout << "Want to calibrate. Use 32 bits "<< std::endl;
-  }
-  else {
-	if (pfi.hdr.nbits == 32) {
-	  pf.hdr.nbits = 32;
-	  pf.sub.FITS_typecode = TFLOAT;
-	}
-	else {
-	  pf.hdr.nbits = pfi.hdr.nbits;
-	  pf.sub.FITS_typecode = TBYTE;
-	}
-	//std::cout << "Use 4 bits anyway"<< std::endl;
-  }
-  pf.rows_per_file = INT_MAX;
-
-  // Change output filename
-  if (have_cal_file) 
-	sprintf(pf.basefilename, "%sCLEANCAL_%s_%05d_%4d", pf.hdr.backend, pf.hdr.source, (int) pf.hdr.MJD_epoch, (int) pf.hdr.fctr);
-  else
+	sprintf(pf.basefilename, "%sCAL_%s_%05d_%4d", pf.hdr.backend, pf.hdr.source, (int) pf.hdr.MJD_epoch, (int) pf.hdr.fctr);
+  } else {
 	sprintf(pf.basefilename, "%sCLEAN_%s_%05d_%4d", pf.hdr.backend, pf.hdr.source, (int) pf.hdr.MJD_epoch, (int) pf.hdr.fctr);
-
+  }
+  
   // Alloc data buffers for the input & output PSRFITS files
   pf.sub.bytes_per_subint = pfi.sub.bytes_per_subint * pf.hdr.nbits / pfi.hdr.nbits;
   pfi.sub.dat_freqs = (float *)malloc(sizeof(float) * pf.hdr.nchan);
   pfi.sub.dat_weights = (float *)malloc(sizeof(float) * pf.hdr.nchan);
   pfi.sub.dat_offsets = (float *)malloc(sizeof(float) * pf.hdr.nchan * pf.hdr.npol);
   pfi.sub.dat_scales  = (float *)malloc(sizeof(float) * pf.hdr.nchan * pf.hdr.npol);
-
   pfi.sub.rawdata = (unsigned char *)malloc(pfi.sub.bytes_per_subint);
+  
+  pf.sub.dat_freqs = (float *)malloc(sizeof(float) * pf.hdr.nchan);
+  pf.sub.dat_weights = (float *)malloc(sizeof(float) * pf.hdr.nchan);
+  pf.sub.dat_offsets = (float *)malloc(sizeof(float) * pf.hdr.nchan * pf.hdr.npol);
+  pf.sub.dat_scales  = (float *)malloc(sizeof(float) * pf.hdr.nchan * pf.hdr.npol);
   pf.sub.rawdata = (unsigned char *)malloc(pf.sub.bytes_per_subint);
-  //float *pfraw = (float *) pf.sub.rawdata;  
-  //unsigned char *pfiraw = (unsigned char *) pfi.sub.rawdata;
 
-  // Default is to process all channels at once
-  if (nchan_per_loop==1)
-       nchan_per_loop = pf.hdr.nchan;
 
-#ifdef HAVE_PSRCHIVE  
-  // If CAL, construct
-  // the archive from which a calibrator will be constructed                                                                                         
   Reference::To<Pulsar::Archive> arch;
 
   // the calibrator constructed from the specified archive
   Reference::To<Pulsar::PolnCalibrator> calibrator;
-  
-  // default calibrator type
-  Reference::To<const Pulsar::Calibrator::Type> pcal_type;
-  ///pcal_type = new Pulsar::CalibratorTypes::SingleAxis;
+
+  std::vector<Matrix<4,4,double>> response;
+  std::vector<int> zero_weight_chans;
+  std::vector<int> is_chan_valid;
+  Horizon horizon;
+  double rcvr_sa;
 
   if (have_cal_file) {
 	std::cerr << "Loading calibrator from " << cal_file << std::endl;
 
 	arch = Pulsar::Archive::load(cal_file);
 
-	if (arch->get_type() != Signal::PolnCal) {
-	  std::cerr << "Archive " << cal_file << " is not a Calibrator" << std::endl;
-	  return 0;
-	}
-	
-	std::cerr << "Here" << std::endl;
-	calibrator = new Pulsar::PolnCalibrator(arch);
-	std::cerr << "Nchan" << std::endl;
-	std::cout << calibrator->get_Archive()->get_centre_frequency() << std::endl;
-	  
-	  //std::cerr << "Nchan: " << model_calibrator.get_nchan() << std::endl;
-      //pcal_type = model_calibrator->get_type();
+	// Recompute Parallactic angle from the archive
+	const Pulsar::Telescope* telescope = arch->get<Pulsar::Telescope>();
+	horizon.set_observatory_latitude (telescope->get_latitude().getRadians());
+	horizon.set_observatory_longitude (telescope->get_longitude().getRadians());
+	horizon.set_source_coordinates(sky_coord(arch->get_coordinates()));
 
-	std::string pcal_file;
-	pcal_file = calibrator->get_filenames();
-	std::cout << "pac: PolnCalibrator constructed from:\n\t" << pcal_file << std::endl;
+	// Get Symmetry angle
+	const Pulsar::Receiver* receiver = arch->get<Pulsar::Receiver>();
+	rcvr_sa = receiver->get_orientation().getRadians();
+	
+	calibrator = new Pulsar::SingleAxisCalibrator (arch);
+	
+	for (unsigned ichan=0; ichan<calibrator->get_nchan(); ichan++) {
+	    Matrix<4,4,double> M;
+	    if (calibrator->get_transformation_valid (ichan)) {
+		const MEAL::Complex2* xform = calibrator->get_transformation(ichan);
+		Jones<double> J = xform->evaluate();
+
+		M = Mueller (J);
+		is_chan_valid.push_back(1);
+	    }
+	    // Flag channels with invalid calibration
+	    else {
+		//pf.sub.dat_weights[ichan] = 0.0;
+		zero_weight_chans.push_back(ichan);
+		is_chan_valid.push_back(0);
+	    }
+	    response.push_back(M);
+	}
   }
   
-#endif
-
   // Create threads
   pthread_t threads[nthreads];  // Thread ids
   thread_args fargs[nthreads];  // Arguments passed to the threads
-  int nchan_per_thread = nchan_per_loop / nthreads;
+  int nchan_per_thread = pf.hdr.nchan / nthreads;
   //unsigned long totnpts = (unsigned long)pf.tot_rows * pf.hdr.nsblk;
 
-  // Init struct for running median
-  std::cout << "Boxsize="<< boxsize<<" Time="<< boxsize * pf.hdr.dt<<std::endl;
-  RunningMean<float> *rm;
-  rm = new RunningMean<float>[pf.hdr.nchan*pf.hdr.npol];
-  for (int i=0; i < pf.hdr.nchan*pf.hdr.npol; i++)
-	rm[i].set_boxsize(boxsize); // Set boxsize for running median
-  
   for (int i=0; i<nthreads; i++) {
 	printf("Setting up thread #%d Offset\n", i);
 	fargs[i].ithread = i;
-	fargs[i].median_clean = median_clean;
 	fargs[i].totnpts = pf.hdr.nsblk;
 	fargs[i].nchan_per_thread = nchan_per_thread;
 	fargs[i].nchan = pf.hdr.nchan;
 	fargs[i].npol = pf.hdr.npol;
 	fargs[i].nbits = pf.hdr.nbits;
-	fargs[i].nskip = nskip;
 	fargs[i].pfiraw = pfi.sub.rawdata;
 	fargs[i].pfraw = pf.sub.rawdata;
-	fargs[i].rm = &rm[i*nchan_per_thread*pf.hdr.npol];
-	fargs[i].response.resize(nchan_per_thread);
-	//for (int j=0; j<nchan_per_thread; j++) //
-	//fargs[i].response[j] = calibrator->get_response(i*nchan_per_thread + j);
+	fargs[i].response = response;
+	fargs[i].weights = pf.sub.dat_weights;
+	fargs[i].rcvr_sa = rcvr_sa;
   }
   
 
@@ -250,27 +220,39 @@ int main(int argc, char *argv[]) {
       
       // Copy subint 
       copy_subint_params(&pf, &pfi);
-	  pf.sub.dat_freqs = pfi.sub.dat_freqs;
-	  pf.sub.dat_weights = pfi.sub.dat_weights;
-	  pf.sub.dat_offsets = pfi.sub.dat_offsets;
-	  pf.sub.dat_scales = pfi.sub.dat_scales;
+      pf.sub.dat_freqs = pfi.sub.dat_freqs;
+      pf.sub.dat_weights = pfi.sub.dat_weights;
+      pf.sub.dat_offsets = pfi.sub.dat_offsets;
+      pf.sub.dat_scales = pfi.sub.dat_scales;
+      for (int ichan : zero_weight_chans) pf.sub.dat_weights[ichan] = 0.0;
 
-	  printf("Create threads\n");
-	  for (int i=0; i<nthreads; i++) {
-		if (pfi.hdr.nbits == 8)
-		  status = pthread_create(&threads[i], NULL, &calclean_psrfits_8b_thread, &fargs[i]);
-		if (pfi.hdr.nbits == 32)
-		  status = pthread_create(&threads[i], NULL, &calclean_psrfits_32b_thread, &fargs[i]);
-		
+      // MJD
+      mjd += 0.5*pf.sub.tsubint/86400.;
+      horizon.set_epoch (MJD((double)mjd));
+      PA = horizon.get_parallactic_angle ();
+
+      // Forms the Parallactic angle matrix
+      MPA[1][1] = cos(2*PA); MPA[2][2] = cos(2*PA);
+      MPA[1][2] = sin(2*PA); MPA[2][1] = -sin(2*PA);
+
+      for (int ithread=0; ithread<nthreads; ithread++) {
+	  for (int i=0; i<pf.hdr.nchan; i++) {
+	      if (is_chan_valid[i] == 1)
+	      fargs[ithread].response[i] = inv(response[i] * MPA);
 	  }
-
-	  // Waiting for threads to finish
-	  for (int i=0; i<nthreads; i++) {
-		pthread_join(threads[i], NULL);
-	  }
-
-	  //for (int k=0;k<100;k++) printf("%d %f\n", k, pfraw[k]);
+      }
+      
+      //printf("Create threads\n");
+      for (int i=0; i<nthreads; i++) {
+	  status = pthread_create(&threads[i], NULL, &calibrate_psrfits_32b_thread, &fargs[i]);
 	  
+      }
+      
+      // Waiting for threads to finish
+      for (int i=0; i<nthreads; i++) {
+	  pthread_join(threads[i], NULL);
+      }
+      
       // Write to disk, with new 32 bits output
       status = psrfits_write_subint(&pf);
       if (status) {

@@ -2,7 +2,7 @@ ACLOCAL_AMFLAGS = -I config
 
 pkginclude_HEADERS = \
 	ascii_header.h \
-	calclean_psrfits.h \
+	calibrate_psrfits.h \
 	dedisperse.h \
 	fold.h \
 	merge_psrfits.h \
@@ -36,10 +36,14 @@ AM_CXXFLAGS = -std=gnu++11
 
 AM_CFLAGS = -fopenmp
 
-bin_PROGRAMS = fold_psrfits psrfits_singlepulse psrfits_subband combine_mocks merge_psrfits fits_extract dada2psrfits fbk2psrfits calclean_psrfits combine_S45dada_psrfits combine_Pico fbkbands2psrfits
- 
+bin_PROGRAMS = fold_psrfits psrfits_singlepulse psrfits_subband combine_mocks merge_psrfits fits_extract dada2psrfits fbk2psrfits combine_S45dada_psrfits combine_Pico fbkbands2psrfits
+
 if HAVE_PGPLOT
 bin_PROGRAMS += plot_psrfits 
+endif
+
+if HAVE_PSRCHIVE
+bin_PROGRAMS += calibrate_psrfits
 endif
 
 fold_psrfits_CFLAGS = @PTHREAD_CFLAGS@ $(AM_CFLAGS)
@@ -59,16 +63,11 @@ merge_psrfits_CFLAGS = @PTHREAD_CFLAGS@ $(AM_CFLAGS)
 merge_psrfits_LDFLAGS = @PTHREAD_CFLAGS@ $(AM_LDFLAGS)
 merge_psrfits_LDADD = libpsrfits_utils.la @PTHREAD_LIBS@ @CFITSIO_LIBS@
 
-
-calclean_psrfits_SOURCES = calclean_psrfits.C calclean_psrfits_32b_thread.C calclean_psrfits_8b_thread.C
-
-calclean_psrfits_CPPFLAGS = @PTHREAD_CFLAGS@ $(AM_CFLAGS)
-calclean_psrfits_LDFLAGS = @PTHREAD_CFLAGS@ $(AM_LDFLAGS)
-calclean_psrfits_LDADD = libpsrfits_utils.la @PTHREAD_LIBS@
-
 if HAVE_PSRCHIVE
-calclean_psrfits_CPPFLAGS += @PSRCHIVE_CFLAGS@
-calclean_psrfits_LDADD += @PSRCHIVE_LIBS@ 
+calibrate_psrfits_SOURCES = calibrate_psrfits.C calibrate_psrfits_32b_thread.C
+calibrate_psrfits_CPPFLAGS = @PTHREAD_CFLAGS@ $(AM_CFLAGS) @PSRCHIVE_CFLAGS@
+calibrate_psrfits_LDFLAGS = @PTHREAD_CFLAGS@ $(AM_LDFLAGS)
+calibrate_psrfits_LDADD = libpsrfits_utils.la @PTHREAD_LIBS@ @PSRCHIVE_LIBS@
 endif
 
 if HAVE_PGPLOT
