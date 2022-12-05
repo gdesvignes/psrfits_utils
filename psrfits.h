@@ -94,6 +94,11 @@ struct subint {
     float *fdata;           // Ptr to optional array to compute scaled and offset data
     unsigned char *rawdata; // Ptr to the raw data itself (for non-8bit)
     unsigned char *data;    // Ptr to 8-bit representation of the data itself
+
+    int ncols;
+    int *colnums;
+    int *coltypes;
+    void **colptr;
 };
 
 #include "polyco_struct.h"

@@ -268,29 +268,23 @@ int psrfits_read_subint(struct psrfits *pf) {
             return *status;
         }
     }
-
     int mode = psrfits_obs_mode(hdr->obs_mode);
     int nchan = hdr->nchan;
     int nivals = hdr->nchan * hdr->npol;
     int row = pf->rownum;
-
-    // TODO: bad! really need to base this on column names
+    double last_offs = sub->offs;
+    
+    float version = 0.0;
+#if defined CFITSIO_MAJOR && CFITSIO_MAJOR >=4 && defined CFITSIO_MINOR && CFITSIO_MINOR >=4
+    printf ("version2 = %f\n", fits_get_version (&version));
+    fits_read_cols(pf->fptr, sub->ncols, &sub->coltypes, &sub->colnums, row, 1, NULL, &sub->colptr, NULL, status);
+#else
     fits_get_colnum(pf->fptr, 0, "TSUBINT", &colnum, status);
     fits_read_col(pf->fptr, TDOUBLE, colnum, row, 1, 1, NULL, &(sub->tsubint),
             NULL, status);
-    double last_offs = sub->offs;
     fits_get_colnum(pf->fptr, 0, "OFFS_SUB", &colnum, status);
     fits_read_col(pf->fptr, TDOUBLE, colnum, row, 1, 1, NULL, &(sub->offs),
             NULL, status);
-    // Hack to fix wrapping in coherent data
-    if (pf->tot_rows > 0) {
-        double delta_offs = sub->offs - last_offs;
-	double wrap_offs = 4294967296L * hdr->dt;
-        if (delta_offs < -0.5*wrap_offs) {
-            sub->offs += wrap_offs;
-	    fprintf(stderr, "Warning: detected likely counter wrap, attempting to fix it.\n");
-        }
-    }
     fits_get_colnum(pf->fptr, 0, "LST_SUB", &colnum, status);
     fits_read_col(pf->fptr, TDOUBLE, colnum, row, 1, 1, NULL, &(sub->lst),
             NULL, status);
@@ -334,6 +328,7 @@ int psrfits_read_subint(struct psrfits *pf) {
     fits_read_col(pf->fptr, TFLOAT, colnum, row, 1, nivals, NULL, sub->dat_scales,
             NULL, status);
     fits_get_colnum(pf->fptr, 0, "DATA", &colnum, status);
+#endif
     if (mode==SEARCH_MODE) {
 	  if (hdr->nbits==32)
 		fits_read_col(pf->fptr, TFLOAT, colnum, row, 1, sub->bytes_per_subint/sizeof(float),
@@ -349,6 +344,16 @@ int psrfits_read_subint(struct psrfits *pf) {
 					NULL, sub->data, NULL, status);
     }
 
+    // Hack to fix wrapping in coherent data
+    if (pf->tot_rows > 0) {
+	double delta_offs = sub->offs - last_offs;
+	double wrap_offs = 4294967296L * hdr->dt;
+	if (delta_offs < -0.5*wrap_offs) {
+	    sub->offs += wrap_offs;
+	    fprintf(stderr, "Warning: detected likely counter wrap, attempting to fix it.\n");
+	}
+    }
+    
     // Complain on error
     fits_report_error(stderr, *status);
 
@@ -429,3 +434,58 @@ int psrfits_read_part_DATA(struct psrfits *pf, int N, int numunsigned,
     
     return *status;
 }
+
+int init_psrfits_subint(struct psrfits *pf) {
+    char colnames[][10] = {"TSUBINT", "OFFS_SUB", "LST_SUB", "RA_SUB", "DEC_SUB",
+			   "GLON_SUB", "GLAT_SUB", "FD_ANG", "POS_ANG", "PAR_ANG",
+			   "TEL_AZ", "TEL_ZEN", "DAT_FREQ", "DAT_WTS", "DAT_OFFS",
+			   "DAT_SCL", "DATA"};
+    int coltypes[] = {TDOUBLE, TDOUBLE, TDOUBLE, TDOUBLE, TDOUBLE, TDOUBLE, TDOUBLE, TDOUBLE, TDOUBLE, TDOUBLE, TDOUBLE, TDOUBLE, TFLOAT, TFLOAT, TFLOAT, TFLOAT, -1};
+
+    struct hdrinfo *hdr = &(pf->hdr);
+    struct subint  *sub = &(pf->sub);
+    int *status = &(pf->status);
+    
+    sub->ncols = sizeof(colnames) / sizeof(colnames[0]);
+    
+    // Get Col names
+    sub->colnums = (int *)malloc(sizeof(int) * sub->ncols);  
+    for (int i=0; i<sub->ncols; i++)
+	fits_get_colnum(pf->fptr, 0, colnames[i], &sub->colnums[i], status);
+
+    // Determinte the type of DATA column
+    int mode = psrfits_obs_mode(hdr->obs_mode);
+    if (mode==SEARCH_MODE) {
+	if (hdr->nbits==32)
+	    coltypes[sub->ncols-1] = TFLOAT;
+	else 
+	    coltypes[sub->ncols-1] = TBYTE;
+    } else if (mode==FOLD_MODE) 
+	coltypes[sub->ncols-1] = TFLOAT;
+
+    sub->coltypes = (int *)malloc(sizeof(int) * sub->ncols);
+    memcpy(sub->coltypes, coltypes, sizeof(int) * sub->ncols);
+
+    sub->colptr = (void **) malloc(sub->ncols * sizeof(void *));
+    sub->colptr[0] = &(sub->tsubint);
+    sub->colptr[1] = &(sub->offs);
+    sub->colptr[2] = &(sub->lst);
+    sub->colptr[3] = &(sub->ra);
+    sub->colptr[4] = &(sub->dec);
+    sub->colptr[5] = &(sub->glon);
+    sub->colptr[6] = &(sub->glat);
+    sub->colptr[6] = &(sub->feed_ang);
+    sub->colptr[7] = &(sub->pos_ang);
+    sub->colptr[8] = &(sub->par_ang);
+    sub->colptr[9] = &(sub->tel_az);
+    sub->colptr[10] = &(sub->tel_zen);
+    sub->colptr[11] = &(sub->dat_freqs);
+    sub->colptr[12] = &(sub->dat_weights);
+    sub->colptr[13] = &(sub->dat_offsets);
+    sub->colptr[14] = &(sub->dat_scales);
+    if (mode==SEARCH_MODE)
+	sub->colptr[15] = &(sub->rawdata);
+    else
+	sub->colptr[15] = &(sub->data);
+}
+
