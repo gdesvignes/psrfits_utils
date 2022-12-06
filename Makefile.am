@@ -38,9 +38,9 @@ AM_CFLAGS = -fopenmp
 
 bin_PROGRAMS = fold_psrfits psrfits_singlepulse psrfits_subband combine_mocks merge_psrfits fits_extract dada2psrfits fbk2psrfits combine_S45dada_psrfits combine_Pico fbkbands2psrfits
 
-if HAVE_PGPLOT
-bin_PROGRAMS += plot_psrfits 
-endif
+#if HAVE_PGPLOT
+#bin_PROGRAMS += plot_psrfits 
+#endif
 
 if HAVE_PSRCHIVE
 bin_PROGRAMS += calibrate_psrfits
@@ -70,16 +70,16 @@ calibrate_psrfits_LDFLAGS = @PTHREAD_CFLAGS@ $(AM_LDFLAGS)
 calibrate_psrfits_LDADD = libpsrfits_utils.la @PTHREAD_LIBS@ @PSRCHIVE_LIBS@
 endif
 
-if HAVE_PGPLOT
-plot_psrfits_SOURCES = plot_psrfits.c plot_psrfits_cmd.h plot_psrfits_cmd.c
-plot_psrfits_CFLAGS = @PTHREAD_CFLAGS@ @PGPLOT_CFLAGS@ $(AM_CFLAGS)
-plot_psrfits_LDFLAGS = @PTHREAD_CFLAGS@ $(AM_LDFLAGS)
-plot_psrfits_LDADD = libpsrfits_utils.la @PTHREAD_LIBS@ @PGPLOT_LIBS@ @CFITSIO_LIBS@
+#if HAVE_PGPLOT
+#plot_psrfits_SOURCES = plot_psrfits.c plot_psrfits_cmd.h plot_psrfits_cmd.c
+#plot_psrfits_CFLAGS = @PTHREAD_CFLAGS@ @PGPLOT_CFLAGS@ $(AM_CFLAGS)
+#plot_psrfits_LDFLAGS = @PTHREAD_CFLAGS@ $(AM_LDFLAGS)
+#plot_psrfits_LDADD = libpsrfits_utils.la @PTHREAD_LIBS@ @PGPLOT_LIBS@ @CFITSIO_LIBS@
 
-if HAVE_PRESTO
-plot_psrfits_CFLAGS += @PRESTO_CFLAGS@
-plot_psrfits_LDADD += @PRESTO_LIBS@
-endif
-endif
+#if HAVE_PRESTO
+#plot_psrfits_CFLAGS += @PRESTO_CFLAGS@
+#plot_psrfits_LDADD += @PRESTO_LIBS@
+#endif
+#endif
 
 fits_extract_SOURCES = fits_extract.c
