@@ -15,7 +15,9 @@ typedef struct {
     unsigned char *pfiraw;
     unsigned char *pfraw;
     std::vector<Matrix<4,4,double>> response;
-    double rcvr_sa;
+  Matrix<4,4,double> MPA;
+  std::vector<int> is_chan_valid;
+  double rcvr_sa;
 } thread_args;
 
 

@@ -34,6 +34,22 @@
 #include "Horizon.h"
 #include "MJD.h"
 
+void zeroDM (float *data, int nchan, int npol, int nsamp, int nvalid_chan) {
+
+  float avg;
+  
+  for (int isamp=0; isamp<nsamp; isamp++) {
+    avg = 0.0; 
+    for (int ichan=0; ichan<nchan; ichan++) 
+      avg += data[isamp * nchan*npol + ichan]; // Bad, uncalibrated channels should be zero anyway
+    
+    avg = avg / nvalid_chan;
+    for (int ichan=0; ichan<nchan; ichan++)
+      data[isamp * nchan*npol + ichan] -= avg;
+  }
+  
+}
+
 void usage() {
   printf(
 		 "Usage: calibrate_psrfits [options] input_filename_base\n"
@@ -41,6 +57,7 @@ void usage() {
 		 "  -h, --help               Print this\n"
 		 "  -c, --cal CAL_archive    Calibrate using a PSRchive noise diode observation\n"
 		 "  -t, --nthreads           Use nthreads for processing\n"
+		 "  -z, --zeroDM             Apply Zero DM baseline correction\n"
 		 );
 }
 
@@ -51,6 +68,7 @@ int main(int argc, char *argv[]) {
 	{"help",      0, NULL, 'h'},
 	{"cal",       1, NULL, 'c'},
 	{"nthreads",  1, NULL, 't'},
+	{"zeroDM",    0, NULL, 'z'},
 	{0,0,0,0}
   };
 
@@ -59,7 +77,7 @@ int main(int argc, char *argv[]) {
   struct psrfits pfi, pf;
   char ra_str[16], dec_str[16], source[24];
   char cal_file[128];
-  bool have_cal_file=false;
+  bool have_cal_file=false, have_zeroDM=false;
   double PA;
   long double mjd;
 
@@ -67,7 +85,7 @@ int main(int argc, char *argv[]) {
   // Form the parallactic angle matrix 
   MPA[0][0] = 1; MPA[3][3] = 1;
   
-  while ((opt=getopt_long(argc,argv,"c:t:h", long_opts,&opti))!=-1) {
+  while ((opt=getopt_long(argc,argv,"c:t:hz", long_opts,&opti))!=-1) {
       switch (opt) {
       case 'c':
 	  strncpy(cal_file, optarg, 128);
@@ -75,6 +93,9 @@ int main(int argc, char *argv[]) {
 	  break;
       case 't':
 	  nthreads = atoi(optarg);
+	  break;
+      case 'z':
+	  have_zeroDM = true;
 	  break;
       case 'h':
       default:
@@ -146,6 +167,7 @@ int main(int argc, char *argv[]) {
   std::vector<int> is_chan_valid;
   Horizon horizon;
   double rcvr_sa;
+  int nvalid_chan;
 
   if (have_cal_file) {
 	std::cerr << "Loading calibrator from " << cal_file << std::endl;
@@ -172,6 +194,7 @@ int main(int argc, char *argv[]) {
 
 		M = Mueller (J);
 		is_chan_valid.push_back(1);
+		nvalid_chan++;
 	    }
 	    // Flag channels with invalid calibration
 	    else {
@@ -202,6 +225,7 @@ int main(int argc, char *argv[]) {
 	fargs[i].response = response;
 	fargs[i].weights = pf.sub.dat_weights;
 	fargs[i].rcvr_sa = rcvr_sa;
+	fargs[i].is_chan_valid = is_chan_valid;
   }
   
 
@@ -236,10 +260,7 @@ int main(int argc, char *argv[]) {
       MPA[1][2] = sin(2*PA); MPA[2][1] = -sin(2*PA);
 
       for (int ithread=0; ithread<nthreads; ithread++) {
-	  for (int i=0; i<pf.hdr.nchan; i++) {
-	      if (is_chan_valid[i] == 1)
-	      fargs[ithread].response[i] = inv(response[i] * MPA);
-	  }
+	fargs[ithread].MPA = MPA;
       }
       
       //printf("Create threads\n");
@@ -252,6 +273,10 @@ int main(int argc, char *argv[]) {
       for (int i=0; i<nthreads; i++) {
 	  pthread_join(threads[i], NULL);
       }
+
+      // Aply ZeroDM?
+      if (have_zeroDM)
+	zeroDM ((float *)pf.sub.rawdata, pf.hdr.nchan, pf.hdr.npol, pf.hdr.nsblk, nvalid_chan);
       
       // Write to disk, with new 32 bits output
       status = psrfits_write_subint(&pf);
@@ -262,6 +287,7 @@ int main(int argc, char *argv[]) {
 		exit(1);
       }
 
+      printf("Row %d\n", pf.tot_rows); fflush(stdout);
   }
 
   // Finished rewriting the file - Close it!

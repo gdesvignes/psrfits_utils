@@ -27,27 +27,32 @@ void *calibrate_psrfits_32b_thread(void *_args) {
     // Output pointers
     float *optr;
 
-    //double StokesVect[4];
     Vector<4, double> StokesVect;
     Vector<4, double> CalStokesVect;
-    Matrix<4,4,double> response;
+    //Matrix<4,4,double> response;
+    
     int nchan = args->nchan;
 
+    std::vector<Matrix<4,4,double>> response;
     std::complex <double> L, arg;
+
+    Matrix<4,4,double> Mzero;
+
+    for (int ichan=args->ithread*args->nchan_per_thread; ichan < (args->ithread+1)*args->nchan_per_thread; ichan++) {
+      if (args->is_chan_valid[ichan] == 1)
+	response.push_back( inv(args->response[ichan] * args->MPA) );
+      else
+	response.push_back(Mzero);
+    }
     
     for (int isamp=0; isamp<args->totnpts; isamp++) {
         iptr = (uint8_t *) &args->pfiraw[isamp*npol*nchan + args->ithread*args->nchan_per_thread];
 
 	for (int ichan=0; ichan<args->nchan_per_thread; ichan++) {
-	    // Check if zapped channel, then skip
-	    //if (args->weights[args->ithread*args->nchan+ichan] == 0){
-	    //    iptr++;
-	    //continue;
-	    //}
 	    
 	    optr = (float *) &args->pfraw[(isamp*npol*nchan + args->ithread*args->nchan_per_thread + ichan)* 4];
 	    
-	    response = args->response[ichan + args->ithread*args->nchan_per_thread];
+	    //response = args->response[ichan + args->ithread*args->nchan_per_thread];
 	    
 	    I = iptr;
 	    Q = (int8_t *)iptr + nchan;
@@ -57,7 +62,7 @@ void *calibrate_psrfits_32b_thread(void *_args) {
 
 	    StokesVect[0] = *I; StokesVect[1] = *Q; StokesVect[2] = *U; StokesVect[3] = *V;
 
-	    CalStokesVect = response * StokesVect;
+	    CalStokesVect = response[ichan] * StokesVect;
 
 	    L = std::complex<double>(CalStokesVect[1], CalStokesVect[2]);
 	    arg = std::complex<double>(0, 2*(args->rcvr_sa - M_PI/4.));
@@ -72,7 +77,6 @@ void *calibrate_psrfits_32b_thread(void *_args) {
 	    *optr = (float) CalStokesVect[3];
 	    
 	}
-	//exit(-1);
     }
     pthread_exit(NULL);
 

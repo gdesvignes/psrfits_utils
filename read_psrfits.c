@@ -275,9 +275,12 @@ int psrfits_read_subint(struct psrfits *pf) {
     double last_offs = sub->offs;
     
     float version = 0.0;
-#if defined CFITSIO_MAJOR && CFITSIO_MAJOR >=4 && defined CFITSIO_MINOR && CFITSIO_MINOR >=4
-    printf ("version2 = %f\n", fits_get_version (&version));
-    fits_read_cols(pf->fptr, sub->ncols, &sub->coltypes, &sub->colnums, row, 1, NULL, &sub->colptr, NULL, status);
+
+#if 0
+    // Cfitsio >4.2.0 allows to read all cols at once
+    //#if defined CFITSIO_MAJOR && CFITSIO_MAJOR >=4 && defined CFITSIO_MINOR && CFITSIO_MINOR >=2
+    fits_read_cols(pf->fptr, sub->ncols, sub->coltypes, sub->colnums, row, 1, NULL, sub->colptr, NULL, status);
+    if (mode==SEARCH_MODE && hdr->nbits==4) pf_4bit_to_8bit(pf);
 #else
     fits_get_colnum(pf->fptr, 0, "TSUBINT", &colnum, status);
     fits_read_col(pf->fptr, TDOUBLE, colnum, row, 1, 1, NULL, &(sub->tsubint),
@@ -328,7 +331,7 @@ int psrfits_read_subint(struct psrfits *pf) {
     fits_read_col(pf->fptr, TFLOAT, colnum, row, 1, nivals, NULL, sub->dat_scales,
             NULL, status);
     fits_get_colnum(pf->fptr, 0, "DATA", &colnum, status);
-#endif
+
     if (mode==SEARCH_MODE) {
 	  if (hdr->nbits==32)
 		fits_read_col(pf->fptr, TFLOAT, colnum, row, 1, sub->bytes_per_subint/sizeof(float),
@@ -343,7 +346,7 @@ int psrfits_read_subint(struct psrfits *pf) {
 	  fits_read_col(pf->fptr, TFLOAT, colnum, row, 1, sub->bytes_per_subint,
 					NULL, sub->data, NULL, status);
     }
-
+#endif
     // Hack to fix wrapping in coherent data
     if (pf->tot_rows > 0) {
 	double delta_offs = sub->offs - last_offs;
@@ -436,23 +439,23 @@ int psrfits_read_part_DATA(struct psrfits *pf, int N, int numunsigned,
 }
 
 int init_psrfits_subint(struct psrfits *pf) {
-    char colnames[][10] = {"TSUBINT", "OFFS_SUB", "LST_SUB", "RA_SUB", "DEC_SUB",
-			   "GLON_SUB", "GLAT_SUB", "FD_ANG", "POS_ANG", "PAR_ANG",
-			   "TEL_AZ", "TEL_ZEN", "DAT_FREQ", "DAT_WTS", "DAT_OFFS",
-			   "DAT_SCL", "DATA"};
-    int coltypes[] = {TDOUBLE, TDOUBLE, TDOUBLE, TDOUBLE, TDOUBLE, TDOUBLE, TDOUBLE, TDOUBLE, TDOUBLE, TDOUBLE, TDOUBLE, TDOUBLE, TFLOAT, TFLOAT, TFLOAT, TFLOAT, -1};
 
     struct hdrinfo *hdr = &(pf->hdr);
     struct subint  *sub = &(pf->sub);
+    sub->ncols = 17;
+    char colnames[17][10] = {"TSUBINT", "OFFS_SUB", "LST_SUB", "RA_SUB", "DEC_SUB",
+			   "GLON_SUB", "GLAT_SUB", "FD_ANG", "POS_ANG", "PAR_ANG",
+			   "TEL_AZ", "TEL_ZEN", "DAT_FREQ", "DAT_WTS", "DAT_OFFS",
+			   "DAT_SCL", "DATA"};
+    int coltypes[17] = {TDOUBLE, TDOUBLE, TDOUBLE, TDOUBLE, TDOUBLE, TDOUBLE, TDOUBLE, TDOUBLE, TDOUBLE, TDOUBLE, TDOUBLE, TDOUBLE, TFLOAT, TFLOAT, TFLOAT, TFLOAT, -1};
     int *status = &(pf->status);
     
-    sub->ncols = sizeof(colnames) / sizeof(colnames[0]);
-    
     // Get Col names
-    sub->colnums = (int *)malloc(sizeof(int) * sub->ncols);  
-    for (int i=0; i<sub->ncols; i++)
-	fits_get_colnum(pf->fptr, 0, colnames[i], &sub->colnums[i], status);
-
+    sub->colnums = (int *)malloc(sizeof(int) * sub->ncols);
+    int test=0;
+    for (int i=0; i<sub->ncols; i++) {
+      fits_get_colnum(pf->fptr, 0, colnames[i], &sub->colnums[i], status);
+    }
     // Determinte the type of DATA column
     int mode = psrfits_obs_mode(hdr->obs_mode);
     if (mode==SEARCH_MODE) {
@@ -465,7 +468,6 @@ int init_psrfits_subint(struct psrfits *pf) {
 
     sub->coltypes = (int *)malloc(sizeof(int) * sub->ncols);
     memcpy(sub->coltypes, coltypes, sizeof(int) * sub->ncols);
-
     sub->colptr = (void **) malloc(sub->ncols * sizeof(void *));
     sub->colptr[0] = &(sub->tsubint);
     sub->colptr[1] = &(sub->offs);
@@ -474,18 +476,18 @@ int init_psrfits_subint(struct psrfits *pf) {
     sub->colptr[4] = &(sub->dec);
     sub->colptr[5] = &(sub->glon);
     sub->colptr[6] = &(sub->glat);
-    sub->colptr[6] = &(sub->feed_ang);
-    sub->colptr[7] = &(sub->pos_ang);
-    sub->colptr[8] = &(sub->par_ang);
-    sub->colptr[9] = &(sub->tel_az);
-    sub->colptr[10] = &(sub->tel_zen);
-    sub->colptr[11] = &(sub->dat_freqs);
-    sub->colptr[12] = &(sub->dat_weights);
-    sub->colptr[13] = &(sub->dat_offsets);
-    sub->colptr[14] = &(sub->dat_scales);
+    sub->colptr[7] = &(sub->feed_ang);
+    sub->colptr[8] = &(sub->pos_ang);
+    sub->colptr[9] = &(sub->par_ang);
+    sub->colptr[10] = &(sub->tel_az);
+    sub->colptr[11] = &(sub->tel_zen);
+    sub->colptr[12] = (sub->dat_freqs);
+    sub->colptr[13] = (sub->dat_weights);
+    sub->colptr[14] = (sub->dat_offsets);
+    sub->colptr[15] = (sub->dat_scales);
     if (mode==SEARCH_MODE)
-	sub->colptr[15] = &(sub->rawdata);
+	sub->colptr[16] = (sub->rawdata);
     else
-	sub->colptr[15] = &(sub->data);
+	sub->colptr[16] = (sub->data);
 }
 
