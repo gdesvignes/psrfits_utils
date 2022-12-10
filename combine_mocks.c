@@ -7,6 +7,7 @@
 #include <string.h>
 #include <fitsio.h>
 #include <libgen.h>
+#include <ctype.h>
 #include "psrfits.h"
 #include "combine_mocks_cmd.h"
 

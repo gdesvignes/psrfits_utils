@@ -153,6 +153,10 @@ int psrfits_read_part_DATA(struct psrfits *pf, int N, int numunsigned,
                            float *fbuffer);
 void scale_and_offset_data(struct psrfits *pf, int numunsigned);
 
+  void pf_4bit_to_8bit(struct psrfits *pf);
+  void convert_4bit_to_8bit(unsigned char *indata, unsigned char *outdata, int N);
+  void pf_8bit_to_4bit(struct psrfits *pf);
+  
 #ifdef __cplusplus
 }
 #endif
