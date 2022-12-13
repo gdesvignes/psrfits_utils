@@ -34,14 +34,17 @@
 #include "Horizon.h"
 #include "MJD.h"
 
+void initzeroDM(float **bandpass, float **wts, int nchan) {
+  *bandpass = (float *) malloc(nchan * sizeof(float));
+  *wts = (float *) malloc(nchan * sizeof(float));
+}
+
 void zeroDM (float *data, int *first_row, float *bandpass, float *wts, int nchan, int npol, int nsamp, int nvalid_chan) {
 
   float avg;
 
   // bandpass
   if (*first_row) {
-    bandpass = (float *) malloc(nchan * sizeof(float));
-    wts = (float *) malloc(nchan * sizeof(float));
     for (int ichan=0; ichan<nchan; ichan++) {
       avg = 0.0;
       for (int isamp=0; isamp<nsamp; isamp++) {
@@ -58,7 +61,7 @@ void zeroDM (float *data, int *first_row, float *bandpass, float *wts, int nchan
     
     *first_row = 0;
   }
-  
+
   for (int isamp=0; isamp<nsamp; isamp++) {
     avg = 0.0; 
     for (int ichan=0; ichan<nchan; ichan++)  {
@@ -71,12 +74,12 @@ void zeroDM (float *data, int *first_row, float *bandpass, float *wts, int nchan
   }
 
   // output
-  for (int isamp=0; isamp<nsamp; isamp++) {
-    avg = 0.0;
-    for (int ichan=0; ichan<nchan; ichan++) {
-      avg += data[isamp * nchan*npol + ichan];
-    }
-  }
+  //for (int isamp=0; isamp<nsamp; isamp++) {
+  //  avg = 0.0;
+  //  for (int ichan=0; ichan<nchan; ichan++) {
+  //    avg += data[isamp * nchan*npol + ichan];
+  //  }
+  //}
   
 }
 
@@ -261,7 +264,11 @@ int main(int argc, char *argv[]) {
 	fargs[i].is_chan_valid = is_chan_valid;
   }
   
-
+  if (have_zeroDM) {
+    printf("Will apply zeroDM baselining\n");
+    initzeroDM (&bandpass, &wts, pf.hdr.nchan);
+  }
+  
   // Create output file
   psrfits_create(&pf);
 
@@ -309,7 +316,6 @@ int main(int argc, char *argv[]) {
 
       // Aply ZeroDM?
       if (have_zeroDM) {
-	printf("Zero DMing\n");
 	zeroDM ((float *)pf.sub.rawdata, &first_row, bandpass, wts, pf.hdr.nchan, pf.hdr.npol, pf.hdr.nsblk, nvalid_chan);
       }
       
@@ -321,8 +327,6 @@ int main(int argc, char *argv[]) {
 		fits_report_error(stderr, status);
 		exit(1);
       }
-
-      printf("Row %d\n", pf.tot_rows); fflush(stdout);
   }
 
   // Finished rewriting the file - Close it!
