@@ -39,7 +39,7 @@ void initzeroDM(float **bandpass, float **wts, int nchan) {
   *wts = (float *) malloc(nchan * sizeof(float));
 }
 
-void zeroDM (float *data, int *first_row, float *bandpass, float *wts, int nchan, int npol, int nsamp, int nvalid_chan) {
+void zeroDM (float *data, int *first_row, float *bandpass, float *wts, int nchan, int npol, int nsamp, int nvalid_chan, std::vector<int> is_chan_valid) {
 
   float avg;
 
@@ -47,10 +47,12 @@ void zeroDM (float *data, int *first_row, float *bandpass, float *wts, int nchan
   if (*first_row) {
     for (int ichan=0; ichan<nchan; ichan++) {
       avg = 0.0;
-      for (int isamp=0; isamp<nsamp; isamp++) {
-	avg += data[isamp * nchan*npol + ichan];
-      }
-      bandpass[ichan] = avg / nsamp;
+      if (is_chan_valid) {
+	for (int isamp=0; isamp<nsamp; isamp++) {
+          avg += data[isamp * nchan*npol + ichan];
+	}
+	bandpass[ichan] = avg / nsamp;
+      } else bandpass[ichan] = 0.0;
     }
     float bandpass_sum = 0.0;
     for (int ichan=0; ichan<nchan; ichan++)
@@ -65,10 +67,14 @@ void zeroDM (float *data, int *first_row, float *bandpass, float *wts, int nchan
   for (int isamp=0; isamp<nsamp; isamp++) {
     avg = 0.0; 
     for (int ichan=0; ichan<nchan; ichan++)  {
-      avg += data[isamp * nchan*npol + ichan]; // Bad, uncalibrated channels should be zero anyway
+      if (is_chan_valid)
+	avg += data[isamp * nchan*npol + ichan]; 
     }
     for (int ichan=0; ichan<nchan; ichan++) {
-      data[isamp * nchan*npol + ichan] -= (wts[ichan] * avg - bandpass[ichan]);
+      if (is_chan_valid)
+	data[isamp * nchan*npol + ichan] -= (wts[ichan] * avg - bandpass[ichan]);
+      else
+	data[isamp * nchan*npol + ichan] = 0.0;
     }
 
   }
