@@ -133,25 +133,32 @@ int psrfits_open(struct psrfits *pf) {
     fits_read_key(pf->fptr, TINT, "OBSNCHAN", &(hdr->orig_nchan), NULL, status);
     hdr->orig_df = hdr->BW / hdr->orig_nchan;
     fits_read_key(pf->fptr, TDOUBLE, "CHAN_DM", &(hdr->chan_dm), NULL, status);
-    if (*status==KEY_NO_EXIST) { hdr->chan_dm=0.0; *status=0; }
+    if (*status==KEY_NO_EXIST || *status==BAD_C2D ) { hdr->chan_dm=0.0; *status=0; }
     fits_read_key(pf->fptr, TSTRING, "SRC_NAME", hdr->source, NULL, status);
     fits_read_key(pf->fptr, TSTRING, "TRK_MODE", hdr->track_mode, NULL, status);
     // TODO warn if not TRACK?
     fits_read_key(pf->fptr, TSTRING, "RA", hdr->ra_str, NULL, status);
     fits_read_key(pf->fptr, TSTRING, "DEC", hdr->dec_str, NULL, status);
     fits_read_key(pf->fptr, TDOUBLE, "BMAJ", &(hdr->beam_FWHM), NULL, status);
+    if (*status==KEY_NO_EXIST || *status==BAD_C2D ) { hdr->beam_FWHM=0.0; *status=0; }
     fits_read_key(pf->fptr, TSTRING, "CAL_MODE", hdr->cal_mode, NULL, status);
     fits_read_key(pf->fptr, TDOUBLE, "CAL_FREQ", &(hdr->cal_freq), NULL, 
             status);
+    if (*status==KEY_NO_EXIST || *status==BAD_C2D ) { hdr->cal_freq=0.0; *status=0; }
     fits_read_key(pf->fptr, TDOUBLE, "CAL_DCYC", &(hdr->cal_dcyc), NULL, 
             status);
+    if (*status==KEY_NO_EXIST || *status==BAD_C2D ) { hdr->cal_dcyc=0.0; *status=0; }
     fits_read_key(pf->fptr, TDOUBLE, "CAL_PHS", &(hdr->cal_phs), NULL, status);
+    if (*status==KEY_NO_EXIST || *status==BAD_C2D ) { hdr->cal_phs=0.0; *status=0; }
     fits_read_key(pf->fptr, TSTRING, "FD_MODE", hdr->feed_mode, NULL, status);
     fits_read_key(pf->fptr, TDOUBLE, "FA_REQ", &(hdr->feed_angle), NULL, 
             status);
     fits_read_key(pf->fptr, TDOUBLE, "SCANLEN", &(hdr->scanlen), NULL, status);
+    if (*status==KEY_NO_EXIST || *status==BAD_C2D ) { hdr->scanlen=0.0; *status=0; }
     fits_read_key(pf->fptr, TDOUBLE, "FD_SANG", &(hdr->fd_sang), NULL, status);
+    if (*status==KEY_NO_EXIST || *status==BAD_C2D ) { hdr->fd_sang=0.0; *status=0; }
     fits_read_key(pf->fptr, TDOUBLE, "FD_XYPH", &(hdr->fd_xyph), NULL, status);
+    if (*status==KEY_NO_EXIST || *status==BAD_C2D ) { hdr->fd_xyph=0.0; *status=0; }
     fits_read_key(pf->fptr, TINT, "IBEAM", &(hdr->ibeam), NULL, status);
 	if (*status) {
 	  printf("No IBEAM keyword found. Skipping.\n");
@@ -275,12 +282,11 @@ int psrfits_read_subint(struct psrfits *pf) {
     double last_offs = sub->offs;
     
     float version = 0.0;
-
 #if 0
     // Cfitsio >4.2.0 allows to read all cols at once
-    //#if defined CFITSIO_MAJOR && CFITSIO_MAJOR >=4 && defined CFITSIO_MINOR && CFITSIO_MINOR >=2
-    fits_read_cols(pf->fptr, sub->ncols, sub->coltypes, sub->colnums, row, 1, NULL, sub->colptr, NULL, status);
-    if (mode==SEARCH_MODE && hdr->nbits==4) pf_4bit_to_8bit(pf);
+    //#if defined CFITSIO_MAJOR && CFITSIO_MAJOR >=4 && defined CFITSIO_MINOR && CFITSIO_MINOR >=4
+    printf ("version2 = %f\n", fits_get_version (&version));
+    fits_read_cols(pf->fptr, sub->ncols, &sub->coltypes, &sub->colnums, row, 1, NULL, &sub->colptr, NULL, status);
 #else
     fits_get_colnum(pf->fptr, 0, "TSUBINT", &colnum, status);
     fits_read_col(pf->fptr, TDOUBLE, colnum, row, 1, 1, NULL, &(sub->tsubint),
@@ -289,34 +295,44 @@ int psrfits_read_subint(struct psrfits *pf) {
     fits_read_col(pf->fptr, TDOUBLE, colnum, row, 1, 1, NULL, &(sub->offs),
             NULL, status);
     fits_get_colnum(pf->fptr, 0, "LST_SUB", &colnum, status);
-    fits_read_col(pf->fptr, TDOUBLE, colnum, row, 1, 1, NULL, &(sub->lst),
+    if (*status==COL_NOT_FOUND) { sub->lst=0.0; *status=0; }
+    else fits_read_col(pf->fptr, TDOUBLE, colnum, row, 1, 1, NULL, &(sub->lst),
             NULL, status);
     fits_get_colnum(pf->fptr, 0, "RA_SUB", &colnum, status);
-    fits_read_col(pf->fptr, TDOUBLE, colnum, row, 1, 1, NULL, &(sub->ra),
+    if (*status==COL_NOT_FOUND) { sub->ra=0.0; *status=0; }
+    else fits_read_col(pf->fptr, TDOUBLE, colnum, row, 1, 1, NULL, &(sub->ra),
             NULL, status);
     fits_get_colnum(pf->fptr, 0, "DEC_SUB", &colnum, status);
-    fits_read_col(pf->fptr, TDOUBLE, colnum, row, 1, 1, NULL, &(sub->dec),
+    if (*status==COL_NOT_FOUND) { sub->dec=0.0; *status=0; }
+    else fits_read_col(pf->fptr, TDOUBLE, colnum, row, 1, 1, NULL, &(sub->dec),
             NULL, status);
     fits_get_colnum(pf->fptr, 0, "GLON_SUB", &colnum, status);
-    fits_read_col(pf->fptr, TDOUBLE, colnum, row, 1, 1, NULL, &(sub->glon),
+    if (*status==COL_NOT_FOUND) { sub->glon=0.0; *status=0; }
+    else fits_read_col(pf->fptr, TDOUBLE, colnum, row, 1, 1, NULL, &(sub->glon),
             NULL, status);
     fits_get_colnum(pf->fptr, 0, "GLAT_SUB", &colnum, status);
-    fits_read_col(pf->fptr, TDOUBLE, colnum, row, 1, 1, NULL, &(sub->glat),
+    if (*status==COL_NOT_FOUND) { sub->glat=0.0; *status=0; }
+    else fits_read_col(pf->fptr, TDOUBLE, colnum, row, 1, 1, NULL, &(sub->glat),
             NULL, status);
     fits_get_colnum(pf->fptr, 0, "FD_ANG", &colnum, status);
-    fits_read_col(pf->fptr, TDOUBLE, colnum, row, 1, 1, NULL, &(sub->feed_ang),
+    if (*status==COL_NOT_FOUND) { sub->feed_ang=0.0; *status=0; }
+    else fits_read_col(pf->fptr, TDOUBLE, colnum, row, 1, 1, NULL, &(sub->feed_ang),
             NULL, status);
     fits_get_colnum(pf->fptr, 0, "POS_ANG", &colnum, status);
-    fits_read_col(pf->fptr, TDOUBLE, colnum, row, 1, 1, NULL, &(sub->pos_ang),
+    if (*status==COL_NOT_FOUND) { sub->pos_ang=0.0; *status=0; }
+    else fits_read_col(pf->fptr, TDOUBLE, colnum, row, 1, 1, NULL, &(sub->pos_ang),
             NULL, status);
     fits_get_colnum(pf->fptr, 0, "PAR_ANG", &colnum, status);
-    fits_read_col(pf->fptr, TDOUBLE, colnum, row, 1, 1, NULL, &(sub->par_ang),
+    if (*status==COL_NOT_FOUND) { sub->par_ang=0.0; *status=0; }
+    else fits_read_col(pf->fptr, TDOUBLE, colnum, row, 1, 1, NULL, &(sub->par_ang),
             NULL, status);
     fits_get_colnum(pf->fptr, 0, "TEL_AZ", &colnum, status);
-    fits_read_col(pf->fptr, TDOUBLE, colnum, row, 1, 1, NULL, &(sub->tel_az),
+    if (*status==COL_NOT_FOUND) { sub->tel_az=0.0; *status=0; }
+    else fits_read_col(pf->fptr, TDOUBLE, colnum, row, 1, 1, NULL, &(sub->tel_az),
             NULL, status);
     fits_get_colnum(pf->fptr, 0, "TEL_ZEN", &colnum, status);
-    fits_read_col(pf->fptr, TDOUBLE, colnum, row, 1, 1, NULL, &(sub->tel_zen),
+    if (*status==COL_NOT_FOUND) { sub->tel_zen=0.0; *status=0; }
+    else fits_read_col(pf->fptr, TDOUBLE, colnum, row, 1, 1, NULL, &(sub->tel_zen),
             NULL, status);
     fits_get_colnum(pf->fptr, 0, "DAT_FREQ", &colnum, status);
     fits_read_col(pf->fptr, TFLOAT, colnum, row, 1, nchan, NULL, sub->dat_freqs,
