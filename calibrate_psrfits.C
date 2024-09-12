@@ -106,13 +106,14 @@ int main(int argc, char *argv[]) {
   static struct option long_opts[] = {
 	{"help",      0, NULL, 'h'},
 	{"cal",       1, NULL, 'c'},
+	{"dstime",    1, NULL, 'd'},
 	{"nthreads",  1, NULL, 't'},
 	{"zeroDM",    0, NULL, 'z'},
 	{0,0,0,0}
   };
 
   int status,opt, opti;
-  int rv=0,nchan_per_loop=1, nthreads=1, fnum_start=1;
+  int rv=0,nchan_per_loop=1, nthreads=1, fnum_start=1, ds_time_fact=1;
   struct psrfits pfi, pf;
   char ra_str[16], dec_str[16], source[24];
   char cal_file[128];
@@ -133,6 +134,9 @@ int main(int argc, char *argv[]) {
 	  strncpy(cal_file, optarg, 128);
 	  have_cal_file = true;
 	  break;
+      case 'd':
+   	  ds_time_fact = atoi(optarg);
+	  break;
       case 't':
 	  nthreads = atoi(optarg);
 	  break;
@@ -152,6 +156,8 @@ int main(int argc, char *argv[]) {
       exit(1);
   }
 
+  // Todo: check if ds_time_fact is a power-of-two
+  
   // Init open file
   pfi.filenum = 1;
   strcpy(pfi.basefilename, argv[optind]);
@@ -169,6 +175,8 @@ int main(int argc, char *argv[]) {
 
   // Copy header for the output file
   memcpy(&pf, &pfi, sizeof(pfi));
+
+  pf.hdr.ds_time_fact = ds_time_fact;
 
   // MJD
   mjd = pf.hdr.MJD_epoch;
@@ -262,6 +270,7 @@ int main(int argc, char *argv[]) {
 	fargs[i].nchan = pf.hdr.nchan;
 	fargs[i].npol = pf.hdr.npol;
 	fargs[i].nbits = pf.hdr.nbits;
+	fargs[i].ds_time_fact = pf.hdr.ds_time_fact;
 	fargs[i].pfiraw = pfi.sub.rawdata;
 	fargs[i].pfraw = pf.sub.rawdata;
 	fargs[i].response = response;
@@ -305,6 +314,9 @@ int main(int argc, char *argv[]) {
       MPA[1][1] = cos(2*PA); MPA[2][2] = cos(2*PA);
       MPA[1][2] = sin(2*PA); MPA[2][1] = -sin(2*PA);
 
+      // Clear the output rawdata in case we downsample in time
+      memset(pf.sub.rawdata, 0, pf.sub.bytes_per_subint);
+      
       for (int ithread=0; ithread<nthreads; ithread++) {
 	fargs[ithread].MPA = MPA;
       }

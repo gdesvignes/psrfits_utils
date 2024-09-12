@@ -44,13 +44,16 @@ void *calibrate_psrfits_32b_thread(void *_args) {
       else
 	response.push_back(Mzero);
     }
-    
+
+    int osamp;
     for (int isamp=0; isamp<args->totnpts; isamp++) {
         iptr = (uint8_t *) &args->pfiraw[isamp*npol*nchan + args->ithread*args->nchan_per_thread];
 
+	osamp = isamp/args->ds_time_fact; // integer division truncates the decimals (if any)
+	
 	for (int ichan=0; ichan<args->nchan_per_thread; ichan++) {
 	    
-	    optr = (float *) &args->pfraw[(isamp*npol*nchan + args->ithread*args->nchan_per_thread + ichan)* 4];
+	    optr = (float *) &args->pfraw[(osamp*npol*nchan + args->ithread*args->nchan_per_thread + ichan)* 4];
 	    
 	    //response = args->response[ichan + args->ithread*args->nchan_per_thread];
 	    
@@ -71,10 +74,10 @@ void *calibrate_psrfits_32b_thread(void *_args) {
 	    
 	    iptr++;
 
-	    *optr = (float) CalStokesVect[0]; optr += nchan;
-	    *optr = (float) CalStokesVect[1]; optr += nchan;
-	    *optr = (float) CalStokesVect[2]; optr += nchan;
-	    *optr = (float) CalStokesVect[3];
+	    *optr += (float) CalStokesVect[0]; optr += nchan;
+	    *optr += (float) CalStokesVect[1]; optr += nchan;
+	    *optr += (float) CalStokesVect[2]; optr += nchan;
+	    *optr += (float) CalStokesVect[3];
 	    
 	}
     }

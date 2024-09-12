@@ -11,6 +11,7 @@ typedef struct {
     int nchan;
     int npol;
     int nbits;
+    int ds_time_fact;
     float *weights;
     unsigned char *pfiraw;
     unsigned char *pfraw;
