@@ -34,69 +34,14 @@
 #include "Horizon.h"
 #include "MJD.h"
 
-void initzeroDM(float **bandpass, float **wts, int nchan) {
-  *bandpass = (float *) malloc(nchan * sizeof(float));
-  *wts = (float *) malloc(nchan * sizeof(float));
-}
-
-void zeroDM (float *data, int *first_row, float *bandpass, float *wts, int nchan, int npol, int nsamp, int nvalid_chan, std::vector<int> is_chan_valid) {
-
-  float avg;
-
-  // bandpass
-  if (*first_row) {
-    for (int ichan=0; ichan<nchan; ichan++) {
-      avg = 0.0;
-      if (is_chan_valid) {
-	for (int isamp=0; isamp<nsamp; isamp++) {
-          avg += data[isamp * nchan*npol + ichan];
-	}
-	bandpass[ichan] = avg / nsamp;
-      } else bandpass[ichan] = 0.0;
-    }
-    float bandpass_sum = 0.0;
-    for (int ichan=0; ichan<nchan; ichan++)
-      bandpass_sum += bandpass[ichan];
-
-    for (int ichan=0; ichan<nchan; ichan++)
-      wts[ichan] = bandpass[ichan] / bandpass_sum;
-    
-    *first_row = 0;
-  }
-
-  for (int isamp=0; isamp<nsamp; isamp++) {
-    avg = 0.0; 
-    for (int ichan=0; ichan<nchan; ichan++)  {
-      if (is_chan_valid)
-	avg += data[isamp * nchan*npol + ichan]; 
-    }
-    for (int ichan=0; ichan<nchan; ichan++) {
-      if (is_chan_valid)
-	data[isamp * nchan*npol + ichan] -= (wts[ichan] * avg - bandpass[ichan]);
-      else
-	data[isamp * nchan*npol + ichan] = 0.0;
-    }
-
-  }
-
-  // output
-  //for (int isamp=0; isamp<nsamp; isamp++) {
-  //  avg = 0.0;
-  //  for (int ichan=0; ichan<nchan; ichan++) {
-  //    avg += data[isamp * nchan*npol + ichan];
-  //  }
-  //}
-  
-}
-
 void usage() {
   printf(
 		 "Usage: calibrate_psrfits [options] input_filename_base\n"
 		 "Options:\n"
-		 "  -h, --help               Print this\n"
-		 "  -c, --cal CAL_archive    Calibrate using a PSRchive noise diode observation\n"
-		 "  -t, --nthreads           Use nthreads for processing\n"
-		 "  -z, --zeroDM             Apply Zero DM baseline correction\n"
+		 "  -h, --help                       Print this\n"
+		 "  -c, --cal CAL_archive            Calibrate using a PSRchive noise diode observation\n"
+		 "  -d, --dstime  <power-of-2 int>   Downsample in time\n"
+		 "  -t, --nthreads <int>             Use nthreads for processing\n"
 		 );
 }
 
@@ -108,7 +53,6 @@ int main(int argc, char *argv[]) {
 	{"cal",       1, NULL, 'c'},
 	{"dstime",    1, NULL, 'd'},
 	{"nthreads",  1, NULL, 't'},
-	{"zeroDM",    0, NULL, 'z'},
 	{0,0,0,0}
   };
 
@@ -117,18 +61,17 @@ int main(int argc, char *argv[]) {
   struct psrfits pfi, pf;
   char ra_str[16], dec_str[16], source[24];
   char cal_file[128];
-  bool have_cal_file=false, have_zeroDM=false;
+  bool have_cal_file=false;
   double PA;
   long double mjd;
   // zero-DM stuff
   int first_row = 1;
-  float *wts, *bandpass;
   
   Matrix<4,4,double> MPA;
   // Form the parallactic angle matrix 
   MPA[0][0] = 1; MPA[3][3] = 1;
 
-  while ((opt=getopt_long(argc,argv,"c:t:hz", long_opts,&opti))!=-1) {
+  while ((opt=getopt_long(argc,argv,"c:d:t:h", long_opts,&opti))!=-1) {
       switch (opt) {
       case 'c':
 	  strncpy(cal_file, optarg, 128);
@@ -139,9 +82,6 @@ int main(int argc, char *argv[]) {
 	  break;
       case 't':
 	  nthreads = atoi(optarg);
-	  break;
-      case 'z':
-	  have_zeroDM = true;
 	  break;
       case 'h':
       default:
@@ -279,11 +219,6 @@ int main(int argc, char *argv[]) {
 	fargs[i].is_chan_valid = is_chan_valid;
   }
   
-  if (have_zeroDM) {
-    printf("Will apply zeroDM baselining\n");
-    initzeroDM (&bandpass, &wts, pf.hdr.nchan);
-  }
-  
   // Create output file
   psrfits_create(&pf);
 
@@ -332,11 +267,6 @@ int main(int argc, char *argv[]) {
 	  pthread_join(threads[i], NULL);
       }
 
-      // Aply ZeroDM?
-      if (have_zeroDM) {
-	zeroDM ((float *)pf.sub.rawdata, &first_row, bandpass, wts, pf.hdr.nchan, pf.hdr.npol, pf.hdr.nsblk, nvalid_chan);
-      }
-      
       // Write to disk, with new 32 bits output
       status = psrfits_write_subint(&pf);
       if (status) {
@@ -360,10 +290,6 @@ int main(int argc, char *argv[]) {
   free(pfi.sub.dat_scales);
   free(pfi.sub.rawdata);
   free(pf.sub.rawdata);
-  if (have_zeroDM) {
-    free(bandpass);
-    free(wts);
-  }
   
   printf("Done.  Wrote %d subints (%f sec) in %d files.  status = %d\n", 
            pf.tot_rows, pf.T, pf.filenum, pf.status);
